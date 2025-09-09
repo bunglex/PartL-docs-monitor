@@ -1,0 +1,42 @@
+name: Monitor Energy Docs
+on:
+  schedule: [{ cron: "0 5 * * 1" }]   # Mondays 05:00 UTC
+  workflow_dispatch: {}
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: Install deps
+        run: pip install requests beautifulsoup4 lxml pdfminer.six Jinja2
+      - name: Monitor & build
+        run: |
+          python scripts/check_partl.py
+          python scripts/render_site.py
+      - name: Publish artifacts to docs
+        run: |
+          mkdir -p docs/archive docs/diffs
+          rsync -a archive/ docs/archive/ || true
+          rsync -a diffs/ docs/diffs/ || true
+      - name: Commit updates
+        run: |
+          git config user.email "regs-bot@users.noreply.github.com"
+          git config user.name "regs-bot"
+          git add registry history archive diffs texts docs CHANGELOG.md || true
+          git commit -m "Update registry, history, and site" || echo "No changes"
+          git push || true
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with: { path: docs }
+  deploy:
+    needs: run
+    runs-on: ubuntu-latest
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
