@@ -1,48 +1,57 @@
 name: Monitor Energy Docs
+
 on:
   workflow_dispatch:
   schedule:
     - cron: "0 5 * * 1"  # Mondays 05:00 UTC
 
-permissions:
-  contents: write
-  pages: write
-  id-token: write
-
 jobs:
-  run:
+  build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
       - name: Install deps
-        run: pip install requests beautifulsoup4 lxml pdfminer.six Jinja2
+        run: |
+          pip install requests beautifulsoup4 lxml pdfminer.six Jinja2
+
       - name: Monitor & build
         run: |
           python scripts/check_partl.py
           python scripts/render_site.py
-      - name: Publish artifacts to docs
+
+      - name: Stage site to docs/
         run: |
           mkdir -p docs/archive docs/diffs
           cp -r archive/* docs/archive/ 2>/dev/null || true
-          cp -r diffs/* docs/diffs/ 2>/dev/null || true
-      - name: Commit updates
+          cp -r diffs/*   docs/diffs/   2>/dev/null || true
+
+      - name: Commit updates to repo
         run: |
           git config user.email "regs-bot@users.noreply.github.com"
-          git config user.name "regs-bot"
+          git config user.name  "regs-bot"
           git add registry history archive diffs texts docs CHANGELOG.md || true
           git commit -m "Update registry, history, and site" || echo "No changes"
           git push || true
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: docs
 
   deploy:
-    needs: run
+    needs: build
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
     steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      - uses: actions/deploy-pages@v4
