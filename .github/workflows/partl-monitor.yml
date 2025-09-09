@@ -10,6 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pages: write
+      id-token: write
+
     steps:
       - uses: actions/checkout@v4
 
@@ -17,30 +20,36 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Show Python & pip
+        run: |
+          python -V
+          python -m pip -V
+
       - name: Upgrade pip tooling
         run: python -m pip install -U pip setuptools wheel
 
-      # Optional system libs (belt-and-braces for lxml on ubuntu-latest)
-      - name: Install system libs (for lxml)
-        run: sudo apt-get update && sudo apt-get install -y libxml2 libxslt1.1
-
-      - name: Install deps
+      # Try to use a prebuilt lxml wheel; if not available, install build deps and retry
+      - name: Install Python deps (with lxml fallback)
         run: |
-          # Force a prebuilt wheel for lxml to avoid builds-from-source
-          pip install --only-binary=:all: "lxml==5.2.1"
-          pip install requests beautifulsoup4 pdfminer.six Jinja2
+          set -e
+          python -m pip install --only-binary=:all: "lxml<6,>=4.9" || (
+            sudo apt-get update &&
+            sudo apt-get install -y libxml2-dev libxslt1-dev python3-dev &&
+            python -m pip install "lxml<6,>=4.9"
+          )
+          python -m pip install requests beautifulsoup4 pdfminer.six Jinja2
 
-      - name: Monitor & build
+      - name: Run monitor (never fail the job)
         run: |
-          set -eux
-          python scripts/check_partl.py
-          python scripts/render_site.py
+          python scripts/check_partl.py || echo "::warning::check_partl.py failed (continuing)"
+          python scripts/render_site.py || echo "::warning::render_site.py failed (continuing)"
 
       - name: Stage site to docs/
         run: |
           mkdir -p docs/archive docs/diffs
           cp -r archive/* docs/archive/ 2>/dev/null || true
           cp -r diffs/*   docs/diffs/   2>/dev/null || true
+          ls -la docs || true
 
       - name: Commit updates to repo
         run: |
