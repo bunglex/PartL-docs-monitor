@@ -20,8 +20,15 @@ jobs:
       - name: Upgrade pip tooling
         run: python -m pip install -U pip setuptools wheel
 
+      # Optional system libs (belt-and-braces for lxml on ubuntu-latest)
+      - name: Install system libs (for lxml)
+        run: sudo apt-get update && sudo apt-get install -y libxml2 libxslt1.1
+
       - name: Install deps
-        run: pip install requests beautifulsoup4 lxml pdfminer.six Jinja2
+        run: |
+          # Force a prebuilt wheel for lxml to avoid builds-from-source
+          pip install --only-binary=:all: "lxml==5.2.1"
+          pip install requests beautifulsoup4 pdfminer.six Jinja2
 
       - name: Monitor & build
         run: |
