@@ -2,7 +2,7 @@ name: PartL Monitor — Crawl & Publish
 
 on:
   push:
-    branches: [ master, main ]
+    branches: [ master ]
   workflow_dispatch: {}
   schedule:
     - cron: "17 7 * * 1"   # every Monday 07:17 London
