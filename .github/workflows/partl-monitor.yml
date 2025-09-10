@@ -75,7 +75,7 @@ track: "Section 6 — Energy (Domestic)"
 name: "Building standards technical handbook January 2025 — Domestic (with July 2025 update)"
 url: "https://www.gov.scot/publications/building-standards-technical-handbook-january-2025-domestic/"
 pdf_selector: "a[href$='.pdf']"
-version_regex: "(January\\s+2025)(.*July\\s+2025\\s+update)?"
+version_regex: '(January\s+2025)(.*July\s+2025\s+update)?'
 history_url: "https://www.gov.scot/collections/building-standards/"
 EOF
           fi
