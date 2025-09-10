@@ -1,76 +1,134 @@
-name: Monitor Energy Docs
+name: PartL Monitor — Crawl & Publish
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [ master, main ]
+  workflow_dispatch: {}
   schedule:
-    - cron: "0 5 * * 1"  # Mondays 05:00 UTC
+    - cron: "17 7 * * 1"   # every Monday 07:17 London
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
 
 jobs:
-  build:
+  build-and-publish:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pages: write
-      id-token: write
-
+    env:
+      PYTHONUNBUFFERED: "1"
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Show Python & pip
+      - name: Ensure requirements (created if missing)
         run: |
-          python -V
-          python -m pip -V
+          if [ ! -f requirements.txt ]; then
+            cat > requirements.txt << 'EOF'
+requests
+beautifulsoup4
+jinja2
+pyyaml
+html5lib
+EOF
+          fi
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-      - name: Upgrade pip tooling
-        run: python -m pip install -U pip setuptools wheel
-
-      # Try to use a prebuilt lxml wheel; if not available, install build deps and retry
-      - name: Install Python deps (with lxml fallback)
+      - name: Ensure default rules (created only if absent)
         run: |
-          set -e
-          python -m pip install --only-binary=:all: "lxml<6,>=4.9" || (
-            sudo apt-get update &&
-            sudo apt-get install -y libxml2-dev libxslt1-dev python3-dev &&
-            python -m pip install "lxml<6,>=4.9"
-          )
-          python -m pip install requests beautifulsoup4 pdfminer.six Jinja2
+          mkdir -p rules
+          # England
+          if [ ! -f rules/england-v1-2023.yml ]; then
+            cat > rules/england-v1-2023.yml << 'EOF'
+jurisdiction: england
+track: "Volume 1 — Dwellings"
+name: "Approved Document L (2021 edition, incorporating 2023 amendments)"
+url: "https://www.gov.uk/government/publications/conservation-of-fuel-and-power-approved-document-l"
+pdf_selector: "a[href$='.pdf'][href*='volume-1']"
+version_regex: "(20\\d{2}\\s+edition\\s+incorporating\\s+20\\d{4}\\s+amendments|20\\d{2}\\s+edition)"
+history_url: "https://www.gov.uk/government/collections/approved-documents"
+EOF
+          fi
+          # Wales
+          if [ ! -f rules/wales-v1-2024.yml ]; then
+            cat > rules/wales-v1-2024.yml << 'EOF'
+jurisdiction: wales
+track: "Volume 1 — Dwellings"
+name: "Approved Document L — Volume 1 (2022 with 2024 amendments)"
+url: "https://www.gov.wales/building-regulations-approved-document-l-vol-1"
+pdf_selector: "a[href$='.pdf']"
+version_regex: "(2022|2024).*?(amend|correction|update)?"
+history_url: "https://www.gov.wales/building-regulations"
+EOF
+          fi
+          # Scotland (Domestic)
+          if [ ! -f rules/scotland-jan-2025.yml ]; then
+            cat > rules/scotland-jan-2025.yml << 'EOF'
+jurisdiction: scotland
+track: "Section 6 — Energy (Domestic)"
+name: "Building standards technical handbook January 2025 — Domestic (with July 2025 update)"
+url: "https://www.gov.scot/publications/building-standards-technical-handbook-january-2025-domestic/"
+pdf_selector: "a[href$='.pdf']"
+version_regex: "(January\\s+2025)(.*July\\s+2025\\s+update)?"
+history_url: "https://www.gov.scot/collections/building-standards/"
+EOF
+          fi
+          # Northern Ireland F1
+          if [ ! -f rules/northern-ireland-f1-2022.yml ]; then
+            cat > rules/northern-ireland-f1-2022.yml << 'EOF'
+jurisdiction: northern-ireland
+track: "F1 — Conservation of fuel and power in dwellings"
+name: "Technical Booklet F1 (June 2022)"
+url: "https://www.finance-ni.gov.uk/articles/building-regulations-technical-booklets"
+pdf_selector: "a[href*='technical-booklet-f1'][href$='.pdf'], a:contains('F1')"
+version_regex: "(June\\s+2022|2022)"
+history_url: "https://www.finance-ni.gov.uk/articles/building-regulations-technical-booklets"
+EOF
+          fi
+          # Northern Ireland F2
+          if [ ! -f rules/northern-ireland-f2-2022.yml ]; then
+            cat > rules/northern-ireland-f2-2022.yml << 'EOF'
+jurisdiction: northern-ireland
+track: "F2 — Conservation of fuel and power in buildings other than dwellings"
+name: "Technical Booklet F2 (June 2022)"
+url: "https://www.finance-ni.gov.uk/articles/building-regulations-technical-booklets"
+pdf_selector: "a[href*='technical-booklet-f2'][href$='.pdf'], a:contains('F2')"
+version_regex: "(June\\s+2022|2022)"
+history_url: "https://www.finance-ni.gov.uk/articles/building-regulations-technical-booklets"
+EOF
+          fi
+          # Republic of Ireland (TGD L — Dwellings)
+          if [ ! -f rules/ireland-tgdl-2022.yml ]; then
+            cat > rules/ireland-tgdl-2022.yml << 'EOF'
+jurisdiction: ireland
+track: "TGD L — Dwellings"
+name: "Technical Guidance Document L — Conservation of Fuel and Energy (2022, last updated 2023)"
+url: "https://www.gov.ie/en/department-of-housing-local-government-and-heritage/publications/technical-guidance-document-l-conservation-of-fuel-and-energy-dwellings/"
+pdf_selector: "a[href$='.pdf']"
+version_regex: "(2022|2023)"
+history_url: "https://www.gov.ie/en/publication/7adf0-technical-guidance-documents/"
+EOF
+          fi
 
-      - name: Run monitor (never fail the job)
+      - name: Crawl (write registry/current.json)
         run: |
-          python scripts/check_partl.py || echo "::warning::check_partl.py failed (continuing)"
-          python scripts/render_site.py || echo "::warning::render_site.py failed (continuing)"
+          mkdir -p registry docs
+          python scripts/check_partl.py --rules rules --out registry/current.json
 
-      - name: Stage site to docs/
+      - name: Render static site (to docs/)
         run: |
-          mkdir -p docs/archive docs/diffs
-          cp -r archive/* docs/archive/ 2>/dev/null || true
-          cp -r diffs/*   docs/diffs/   2>/dev/null || true
-          ls -la docs || true
-
-      - name: Commit updates to repo
-        run: |
-          git config user.email "regs-bot@users.noreply.github.com"
-          git config user.name  "regs-bot"
-          git add registry history archive diffs texts docs CHANGELOG.md || true
-          git commit -m "Update registry, history, and site" || echo "No changes"
-          git push || true
+          python scripts/render_site.py --registry registry/current.json --templates templates --out docs
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: docs
 
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-    steps:
-      - uses: actions/deploy-pages@v4
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
