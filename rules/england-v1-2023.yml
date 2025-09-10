@@ -1,1 +1,8 @@
-# England Part L (stub)
+jurisdiction: england
+track: "Volume 1 — Dwellings"
+name: "Approved Document L (2021 edition, incorporating 2023 amendments) — Volume 1"
+url: "https://www.gov.uk/government/publications/conservation-of-fuel-and-power-approved-document-l"
+# match the dwellings PDF; uses Volume_1 in the filename
+pdf_selector: "a[href$='.pdf'][href*='Volume_1']"
+version_regex: "(20\\d{2}\\s+edition\\s+incorporating\\s+20\\d{4}\\s+amendments|20\\d{2}\\s+edition)"
+history_url: "https://www.gov.uk/government/collections/approved-documents"
