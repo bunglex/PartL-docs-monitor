@@ -1,20 +1,24 @@
-<!doctype html><meta charset=""utf-8"">
-<title>{{ item.jurisdiction|replace(""_"","" "")|title }} ó {{ item.name }} ó History</title>
-<h1>{{ item.jurisdiction|replace(""_"","" "")|title }} ó {{ item.name }}</h1>
-<p><strong>Current rule version:</strong> {{ item.rule_version }}<br>
-<strong>Current PDF:</strong> <a href=""{{ item.source_url }}"">{{ item.source_url }}</a><br>
-<strong>Last seen:</strong> {{ item.last_seen }}</p>
-<h2>History</h2>
-<table border=""1"" cellpadding=""6"" cellspacing=""0"">
-<tr><th>Date</th><th>Checksum</th><th>Numbers snapshot</th><th>Archived PDF</th><th>Diff</th></tr>
-{% for h in item.history|sort(attribute='date', reverse=True) %}
-<tr>
-  <td>{{ h.date }}</td>
-  <td><code>{{ h.checksum }}</code></td>
-  <td>{% if h.numbers %}<code>{{ h.numbers|join("", "") }}</code>{% else %}ó{% endif %}</td>
-  <td>{% if h.archived_pdf %}<a href=""../{{ h.archived_pdf }}"">Download</a>{% else %}ó{% endif %}</td>
-  <td>{% if h.diff %}<a href=""../{{ h.diff }}"">Unified diff</a>{% else %}ó{% endif %}</td>
-</tr>
-{% endfor %}
-</table>
-<p><a href=""../index.html"">? Back to index</a></p>
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>{{ item.name }} ‚Äî {{ item.jurisdiction }}</title>
+</head>
+<body>
+  <p><a href="../index.html">‚Üê Back</a></p>
+  <h1>{{ item.name }} ‚Äî {{ item.jurisdiction }}</h1>
+  <p>Version: {{ item.rule_version }}</p>
+  <p>Current PDF: <a href="{{ item.source_url }}">{{ item.source_url }}</a></p>
+
+  <h2>History</h2>
+  <ul>
+  {% for h in item.history|reverse %}
+    <li>
+      {{ h.date }} ‚Äî checksum: {{ h.checksum }}
+      {% if h.archived_pdf %} ‚Äî <a href="../{{ h.archived_pdf }}">archived PDF</a>{% endif %}
+      {% if h.diff %} ‚Äî <a href="../{{ h.diff }}">diff</a>{% endif %}
+    </li>
+  {% endfor %}
+  </ul>
+</body>
+</html>
