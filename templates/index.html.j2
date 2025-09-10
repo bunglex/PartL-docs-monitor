@@ -9,12 +9,19 @@
   <h1>Building Energy Docs – Monitor</h1>
   <p>Items: {{ items|length }}</p>
   <table>
-    <thead><tr><th>Jurisdiction</th><th>Name</th><th>Version</th><th>PDF</th><th>History</th></tr></thead>
+    <thead>
+      <tr>
+        <th>Jurisdiction</th><th>Track</th><th>Name</th><th>Issued</th>
+        <th>Version</th><th>PDF</th><th>History</th>
+      </tr>
+    </thead>
     <tbody>
     {% for it in items %}
       <tr>
         <td>{{ it.jurisdiction }}</td>
+        <td>{{ it.track_title or it.track }}</td>
         <td>{{ it.name }}</td>
+        <td>{{ it.issued or "" }}</td>
         <td>{{ it.rule_version }}</td>
         <td><a href="{{ it.source_url }}">Open PDF</a></td>
         <td><a href="history/{{ it.slug }}.html">History</a></td>
