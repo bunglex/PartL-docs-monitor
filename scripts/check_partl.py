@@ -7,33 +7,61 @@ from urllib.parse import urljoin
 import requests
 from bs4 import BeautifulSoup as BS
 
-# ---- Collection pages (only these URLs are required) ----
+# ---- Collection pages & tracks (we'll monitor multiple docs per jurisdiction) ----
 SITES = [
-  { "jurisdiction":"england",
+  # ENGLAND (same collection URL, two tracks)
+  { "jurisdiction":"england", "track":"vol1-dwellings",
     "collection":"https://www.gov.uk/government/collections/approved-documents",
-    "include":["approved document l","volume 1","dwellings","domestic","conservation of fuel"],
+    "include":["approved document l","volume 1","dwellings","domestic"],
     "exclude":["volume 2","non-domestic","buildings other than dwellings"] },
+  { "jurisdiction":"england", "track":"vol2-non-domestic",
+    "collection":"https://www.gov.uk/government/collections/approved-documents",
+    "include":["approved document l","volume 2","non-domestic","buildings other than dwellings"],
+    "exclude":["volume 1","dwellings","domestic"] },
+  # Optional amendments track (England)
+  { "jurisdiction":"england", "track":"amendments",
+    "collection":"https://www.gov.uk/government/collections/approved-documents",
+    "include":["approved document l","amendment","amendments"],
+    "exclude":[] },
 
-  { "jurisdiction":"wales",
+  # WALES
+  { "jurisdiction":"wales", "track":"vol1-dwellings",
     "collection":"https://www.gov.wales/building-regulations-approved-documents",
     "include":["approved document l","volume 1","dwellings","domestic"],
     "exclude":["volume 2","non-domestic"] },
+  { "jurisdiction":"wales", "track":"vol2-non-domestic",
+    "collection":"https://www.gov.wales/building-regulations-approved-documents",
+    "include":["approved document l","volume 2","non-domestic","buildings other than dwellings"],
+    "exclude":["volume 1","dwellings","domestic"] },
 
-  { "jurisdiction":"scotland",
+  # SCOTLAND (domestic/non-domestic handbooks)
+  { "jurisdiction":"scotland", "track":"domestic",
     "collection":"https://www.gov.scot/collections/building-standards/",
     "include":["technical handbook","domestic","section 6","energy"],
     "exclude":["non-domestic"] },
+  { "jurisdiction":"scotland", "track":"non-domestic",
+    "collection":"https://www.gov.scot/collections/building-standards/",
+    "include":["technical handbook","non-domestic","section 6","energy"],
+    "exclude":["domestic"] },
 
-  { "jurisdiction":"northern_ireland",
+  # NORTHERN IRELAND (F1/F2)
+  { "jurisdiction":"northern_ireland", "track":"f1-dwellings",
     "collection":"https://www.finance-ni.gov.uk/topics/building-regulations/technical-booklets",
     "include":["technical booklet f1","dwellings"],
-    "exclude":[] },
+    "exclude":["f2","buildings other than dwellings","non-domestic"] },
+  { "jurisdiction":"northern_ireland", "track":"f2-non-domestic",
+    "collection":"https://www.finance-ni.gov.uk/topics/building-regulations/technical-booklets",
+    "include":["technical booklet f2","buildings other than dwellings","non-domestic"],
+    "exclude":["f1","dwellings","domestic"] },
 
-  { "jurisdiction":"ireland",
+  # IRELAND (TGD L – dwellings) — add non-domestic later if you like
+  { "jurisdiction":"ireland", "track":"dwellings",
     "collection":"https://www.gov.ie/en/publication/07b29-technical-guidance-document-l-conservation-of-fuel-and-energy-dwellings/",
     "include":["technical guidance document l","tgd l","dwellings","part l"],
     "exclude":["non-domestic"] },
+  # { "jurisdiction":"ireland", "track":"non-domestic", ... }  # can be added later
 ]
+
 
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/123.0 Safari/537.36 PartL-monitor/1.0")
