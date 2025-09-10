@@ -1,0 +1,7 @@
+jurisdiction: england
+track: "Amendment slip"
+name: "February 2023 amendments to Approved Document L (volumes 1 and 2)"
+url: "https://www.gov.uk/government/publications/conservation-of-fuel-and-power-approved-document-l"
+pdf_selector: "a[href$='.pdf'][href*='February_2023_amendments_to_Approved_Document_L']"
+version_regex: "February\\s+2023\\s+amendments"
+history_url: "https://www.gov.uk/government/collections/approved-documents"
