@@ -76,26 +76,42 @@ def score_for(j, text, href):
     if "booklet f2" in t or re.search(r"\bf2\b", t): s+=2
     return s
 
-def classify_track(j, text, href):
-    tt=(text or "").lower(); hh=(href or "").lower()
-    if j in ("england","wales"):
-        if "volume 1" in tt or "volume-1" in hh or "dwellings" in tt or "domestic" in tt:
-            return "vol1-dwellings","Volume 1 — Dwellings"
-        if "volume 2" in tt or "volume-2" in hh or "non-domestic" in tt or "buildings other than dwellings" in tt:
-            return "vol2-non-domestic","Volume 2 — Buildings other than dwellings"
+def classify_track(j: str, text: str, href: str) -> tuple[str, str]:
+    """
+    Return (track_id, track_title)
+    """
+    tt = (text or "").lower()
+    hh = (href or "").lower()
+
+    # Helpful regex for 'vol', 'vol.', 'volume' 1/2
+    vol1 = bool(re.search(r"\b(vol(?:\.|ume)?\s*1|dwellings|domestic)\b", tt))
+    vol2 = bool(re.search(r"\b(vol(?:\.|ume)?\s*2|non[- ]domestic|buildings other than dwellings)\b", tt))
+
+    if j in ("england", "wales"):
+        if vol1:
+            return "vol1-dwellings", "Volume 1 — Dwellings"
+        if vol2:
+            return "vol2-non-domestic", "Volume 2 — Buildings other than dwellings"
         if "amendment" in tt or "amendments" in tt:
-            return "amendments","Amendments"
-        return "part-l","Part L"
-    if j=="scotland":
-        if "non-domestic" in tt: return "non-domestic","Non-domestic Handbook — Section 6"
-        return "domestic","Domestic Handbook — Section 6"
-    if j=="northern_ireland":
-        if "booklet f2" in tt or re.search(r"\bf2\b", tt) or re.search(r"/f2", hh):
-            return "f2-non-domestic","Technical Booklet F2 — Non-domestic"
-        return "f1-dwellings","Technical Booklet F1 — Dwellings"
-    if j=="ireland":
-        return "dwellings","TGD L — Dwellings"
-    return "general","Energy efficiency"
+            return "amendments", "Amendments"
+        return "part-l", "Part L"
+
+    if j == "scotland":
+        if "non-domestic" in tt:
+            return "non-domestic", "Non-domestic Handbook — Section 6"
+        return "domestic", "Domestic Handbook — Section 6"
+
+    if j == "northern_ireland":
+        # Be generous with patterns
+        if "booklet f2" in tt or re.search(r"\bf2\b", tt) or "f2" in hh:
+            return "f2-non-domestic", "Technical Booklet F2 — Non-domestic"
+        return "f1-dwellings", "Technical Booklet F1 — Dwellings"
+
+    if j == "ireland":
+        return "dwellings", "TGD L — Dwellings"
+
+    return "general", "Energy efficiency"
+
 
 def detail_candidates(coll_html, base, j):
     cand=[]
@@ -109,19 +125,59 @@ def detail_candidates(coll_html, base, j):
             seen.add(u); out.append((u,t))
     return out[:20]
 
-def find_pdfs_on_page(detail_html, base, j):
-    """Return list of (pdf_url, anchor_text) sorted by relevance; de-duplicated."""
-    scored=[]
-    for a in soup(detail_html).find_all("a", href=True):
-        href=a["href"]; txt=a.get_text(" ", strip=True)
-        sc=score_for(j, txt, href)
-        if href.lower().endswith(".pdf") or "download" in href.lower() or sc>=2:
-            scored.append((sc, urljoin(base, href), txt))
-    seen=set(); res=[]
-    for sc,u,t in sorted(scored, key=lambda x:-x[0]):
+def find_pdfs_on_page(detail_html: str, base: str, j: str) -> list[tuple[str, str]]:
+    """
+    Return list of (pdf_url, best_title_text) sorted by relevance; de-duplicated.
+    If the anchor text is weak (e.g., 'PDF'), grab the nearest heading within
+    the same list/card to use as the context title.
+    """
+    s = soup(detail_html)
+    scored = []
+
+    def nearest_title(a_tag):
+        # Walk up to a useful container, then find a heading- or title-like element
+        container = a_tag
+        for _ in range(4):
+            if not container or container.name in ("li", "article", "div", "section"):
+                break
+            container = container.parent
+        if not container:
+            container = a_tag.parent or a_tag
+
+        # Common GOV.UK structures often have an <a> title before the 'PDF' link
+        for sel in ["a", "h3", "h2", "strong"]:
+            h = container.find(sel)
+            if h and h.get_text(strip=True) and len(h.get_text(strip=True)) > 8:
+                return h.get_text(" ", strip=True)
+
+        # Fall back to a trimmed container text
+        return container.get_text(" ", strip=True)[:200]
+
+    for a in s.find_all("a", href=True):
+        href = a["href"]
+        txt = a.get_text(" ", strip=True)
+        sc = score_for(j, txt, href)
+
+        # We consider it if it's a PDF or looks like a download link
+        if href.lower().endswith(".pdf") or "download" in href.lower() or sc >= 2:
+            # If anchor text is too generic, use the nearest title text
+            if not txt or txt.strip().lower() in {"pdf", "open pdf", "download", "view", "open document"} or len(txt) < 6:
+                txt = nearest_title(a)
+
+            full = urljoin(base, href)
+            # Re-score with the improved text
+            sc2 = score_for(j, txt, href) + sc
+            scored.append((sc2, full, txt))
+
+    # De-dup & sort
+    seen = set()
+    res: list[tuple[str, str]] = []
+    for sc, u, t in sorted(scored, key=lambda x: -x[0]):
         if u not in seen:
-            seen.add(u); res.append((u,t))
+            seen.add(u)
+            res.append((u, t))
     return res[:12]
+
 
 MONTHS={m:i for i,m in enumerate(["","january","february","march","april","may","june","july","august","september","october","november","december"])}
 
@@ -244,9 +300,12 @@ for site in SITES:
             seen_tracks.add(ti)
 
         # Stop early if we have “enough” tracks commonly expected
-        target = {"england":3, "wales":3, "scotland":2, "northern_ireland":2, "ireland":1}.get(j, 3)
+        target = {"england": 4, "wales": 4, "scotland": 2, "northern_ireland": 2, "ireland": 1}.get(j, 3)
         if len(seen_tracks) >= target:
             break
+    # If we found volume tracks, drop a generic Part L entry (avoid duplicates)
+    if any(d["track_id"].startswith("vol") for d in docs):
+        docs = [d for d in docs if d["track_id"] != "part-l"]
 
     if not docs:
         log("[INFO] no pdfs discovered; skip"); continue
