@@ -7,6 +7,8 @@
 <body>
   <p><a href="../index.html">← Back</a></p>
   <h1>{{ item.name }} — {{ item.jurisdiction }}</h1>
+  <p>Track: {{ item.track_title or item.track }}</p>
+  <p>Issued: {{ item.issued or "—" }}</p>
   <p>Version: {{ item.rule_version }}</p>
   <p>Current PDF: <a href="{{ item.source_url }}">{{ item.source_url }}</a></p>
 
@@ -15,6 +17,7 @@
   {% for h in item.history|reverse %}
     <li>
       {{ h.date }} — checksum: {{ h.checksum }}
+      {% if h.issued %} — issued: {{ h.issued }}{% endif %}
       {% if h.archived_pdf %} — <a href="../{{ h.archived_pdf }}">archived PDF</a>{% endif %}
       {% if h.diff %} — <a href="../{{ h.diff }}">diff</a>{% endif %}
     </li>
