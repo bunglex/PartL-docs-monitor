@@ -201,7 +201,7 @@ for site in SITES:
   name = derive_name(detail_html or "", txt, j)
   numbers = extract_numbers(txt)
 
-  sl = slug(f"{j}-{name}")
+  sl = slug(f"{j}-{site.get('track') or name}")
   arch = f"archive/{j}/{sl}"; txtdir = f"texts/{sl}"; difdir = f"diffs/{sl}"
   ensure(arch, txtdir, difdir, "docs/history")
 
