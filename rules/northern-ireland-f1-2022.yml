@@ -1,0 +1,7 @@
+jurisdiction: northern-ireland
+track: "F1 — Conservation of fuel and power in dwellings"
+name: "Technical Booklet F1 (June 2022)"
+start_url: "https://www.finance-ni.gov.uk/articles/building-regulations-technical-booklets"
+selector: "a[href$='.pdf'][href*='technical-booklet-f1']"
+version_regex: "(June\\s+2022|2022)"
+history_url: "https://www.finance-ni.gov.uk/articles/building-regulations-technical-booklets"
