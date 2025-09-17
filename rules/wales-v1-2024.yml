@@ -1,7 +1,7 @@
 jurisdiction: wales
 track: "Volume 1 — Dwellings"
 name: "Approved Document L — Volume 1 (2022 with 2024 amendments)"
-start_url: "https://www.gov.wales/building-regulations-approved-document-l-vol-1"
+start_url: "https://www.gov.wales/approved-document-l-conservation-fuel-and-power"
 selector: "a[href$='.pdf']"
 text_includes: ["Volume 1"]
 version_regex: "(2024|2022)"
