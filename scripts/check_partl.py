@@ -11,6 +11,69 @@ import requests
 from bs4 import BeautifulSoup
 import yaml
 
+def hop_then_find_pdf(start_url: str, rule: dict, hop_limit: int = 5) -> Tuple[Optional[str], Optional[str]]:
+    """
+    1) Try to find PDF on start_url.
+    2) If none, follow up to hop_limit best non-PDF links on same domain and search there.
+    3) If still none, from each child page, follow up to 5 'attachment-like' pages (HTML pages)
+       whose text/URL looks relevant, then search those for PDFs.
+    """
+    start_html = fetch_html(start_url)
+    start_soup = BeautifulSoup(start_html, "lxml")
+
+    # 1) Direct on start page
+    pdf, txt = find_pdf_on_page(start_url, start_soup, rule)
+    if pdf:
+        return pdf, txt
+
+    def candidate_links(soup, base_url, max_links=hop_limit):
+        cands = []
+        for a in soup.find_all("a", href=True):
+            href = a["href"]
+            if href.lower().endswith(".pdf"):
+                continue
+            dest = abs_url(base_url, href)
+            # keep within same domain for HTML pages
+            if domain_of(dest) != domain_of(base_url):
+                continue
+            score = score_link(a.get_text() or "", href, rule)
+            cands.append((score, dest, a.get_text() or ""))
+        cands.sort(reverse=True)
+        return cands[:max_links]
+
+    # 2) Follow best child pages
+    for score, dest, text in candidate_links(start_soup, start_url):
+        try:
+            html = fetch_html(dest)
+        except Exception:
+            continue
+        soup = BeautifulSoup(html, "lxml")
+        pdf, txt = find_pdf_on_page(dest, soup, rule, context_text=text)
+        if pdf:
+            return pdf, txt
+
+        # 3) From each child page, follow 'attachment-like' pages (HTML) and search there
+        attach_cands = []
+        for a in soup.find_all("a", href=True):
+            href = a["href"]
+            if href.lower().endswith(".pdf"):
+                continue
+            # attachment-like URLs that often lead to assets PDF
+            if any(key in href.lower() for key in ["attachment", "/publications/", "/guidance/"]):
+                sc = score_link(a.get_text() or "", href, rule)
+                attach_cands.append((sc, abs_url(dest, href), a.get_text() or ""))
+        attach_cands.sort(reverse=True)
+        for sc2, attach_url, txt2 in attach_cands[:5]:
+            try:
+                html2 = fetch_html(attach_url)
+            except Exception:
+                continue
+            soup2 = BeautifulSoup(html2, "lxml")
+            pdf, txt = find_pdf_on_page(attach_url, soup2, rule, context_text=(text + " " + txt2))
+            if pdf:
+                return pdf, txt
+
+    return None, None
 
 # ---------------- utils ----------------
 
