@@ -12,11 +12,16 @@ permissions:
   pages: write
   id-token: write
 
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
     env:
       PYTHONUNBUFFERED: "1"
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,104 +31,25 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Ensure requirements (created if missing)
+      - name: Install deps
         run: |
-          if [ ! -f requirements.txt ]; then
-            cat > requirements.txt << 'EOF'
-requests
-beautifulsoup4
-jinja2
-pyyaml
-html5lib
-EOF
-          fi
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Ensure default rules (created only if absent)
+      - name: Prepare output folders
         run: |
-          mkdir -p rules
-          # England
-          if [ ! -f rules/england-v1-2023.yml ]; then
-            cat > rules/england-v1-2023.yml << 'EOF'
-jurisdiction: england
-track: "Volume 1 — Dwellings"
-name: "Approved Document L (2021 edition, incorporating 2023 amendments)"
-url: "https://www.gov.uk/government/publications/conservation-of-fuel-and-power-approved-document-l"
-pdf_selector: "a[href$='.pdf'][href*='volume-1']"
-version_regex: "(20\\d{2}\\s+edition\\s+incorporating\\s+20\\d{2}\\s+amendments|20\\d{2}\\s+edition)"
-history_url: "https://www.gov.uk/government/collections/approved-documents"
-EOF
-          fi
-          # Wales
-          if [ ! -f rules/wales-v1-2024.yml ]; then
-            cat > rules/wales-v1-2024.yml << 'EOF'
-jurisdiction: wales
-track: "Volume 1 — Dwellings"
-name: "Approved Document L — Volume 1 (2022 with 2024 amendments)"
-url: "https://www.gov.wales/building-regulations-approved-document-l-vol-1"
-pdf_selector: "a[href$='.pdf']"
-version_regex: "(2022|2024).*?(amend|correction|update)?"
-history_url: "https://www.gov.wales/building-regulations"
-EOF
-          fi
-          # Scotland (Domestic)
-          if [ ! -f rules/scotland-jan-2025.yml ]; then
-            cat > rules/scotland-jan-2025.yml << 'EOF'
-jurisdiction: scotland
-track: "Section 6 — Energy (Domestic)"
-name: "Building standards technical handbook January 2025 — Domestic (with July 2025 update)"
-url: "https://www.gov.scot/publications/building-standards-technical-handbook-january-2025-domestic/"
-pdf_selector: "a[href$='.pdf']"
-version_regex: "(January\\s+2025)(.*July\\s+2025\\s+update)?"
-history_url: "https://www.gov.scot/collections/building-standards/"
-EOF
-          fi
-          # Northern Ireland F1
-          if [ ! -f rules/northern-ireland-f1-2022.yml ]; then
-            cat > rules/northern-ireland-f1-2022.yml << 'EOF'
-jurisdiction: northern-ireland
-track: "F1 — Conservation of fuel and power in dwellings"
-name: "Technical Booklet F1 (June 2022)"
-url: "https://www.finance-ni.gov.uk/articles/building-regulations-technical-booklets"
-pdf_selector: "a[href*='technical-booklet-f1'][href$='.pdf']"
-version_regex: "(June\\s+2022|2022)"
-history_url: "https://www.finance-ni.gov.uk/articles/building-regulations-technical-booklets"
-EOF
-          fi
-          # Northern Ireland F2
-          if [ ! -f rules/northern-ireland-f2-2022.yml ]; then
-            cat > rules/northern-ireland-f2-2022.yml << 'EOF'
-jurisdiction: northern-ireland
-track: "F2 — Conservation of fuel and power in buildings other than dwellings"
-name: "Technical Booklet F2 (June 2022)"
-url: "https://www.finance-ni.gov.uk/articles/building-regulations-technical-booklets"
-pdf_selector: "a[href*='technical-booklet-f2'][href$='.pdf']"
-version_regex: "(June\\s+2022|2022)"
-history_url: "https://www.finance-ni.gov.uk/articles/building-regulations-technical-booklets"
-EOF
-          fi
-          # Republic of Ireland (TGD L — Dwellings)
-          if [ ! -f rules/ireland-tgdl-2022.yml ]; then
-            cat > rules/ireland-tgdl-2022.yml << 'EOF'
-jurisdiction: ireland
-track: "TGD L — Dwellings"
-name: "Technical Guidance Document L — Conservation of Fuel and Energy (2022, last updated 2023)"
-url: "https://www.gov.ie/en/department-of-housing-local-government-and-heritage/publications/technical-guidance-document-l-conservation-of-fuel-and-energy-dwellings/"
-pdf_selector: "a[href$='.pdf']"
-version_regex: "(2022|2023)"
-history_url: "https://www.gov.ie/en/publication/7adf0-technical-guidance-documents/"
-EOF
-          fi
+          mkdir -p docs docs/archive docs/diffs history texts archive diffs registry rules templates scripts
 
       - name: Crawl (write registry/current.json)
         run: |
-          mkdir -p registry docs
           python scripts/check_partl.py --rules rules --out registry/current.json
 
       - name: Render static site (to docs/)
         run: |
-          python scripts/render_site.py --registry registry/current.json --templates templates --out docs
+          python scripts/render_site.py \
+            --registry registry/current.json \
+            --templates templates \
+            --out docs
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
