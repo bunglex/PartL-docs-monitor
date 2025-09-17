@@ -1,4 +1,4 @@
-name: PartL Monitor — Crawl & Publish
+name: "PartL Monitor — Crawl & Publish"
 
 on:
   push:
@@ -51,7 +51,7 @@ track: "Volume 1 — Dwellings"
 name: "Approved Document L (2021 edition, incorporating 2023 amendments)"
 url: "https://www.gov.uk/government/publications/conservation-of-fuel-and-power-approved-document-l"
 pdf_selector: "a[href$='.pdf'][href*='volume-1']"
-version_regex: "(20\\d{2}\\s+edition\\s+incorporating\\s+20\\d{4}\\s+amendments|20\\d{2}\\s+edition)"
+version_regex: "(20\\d{2}\\s+edition\\s+incorporating\\s+20\\d{2}\\s+amendments|20\\d{2}\\s+edition)"
 history_url: "https://www.gov.uk/government/collections/approved-documents"
 EOF
           fi
@@ -75,7 +75,7 @@ track: "Section 6 — Energy (Domestic)"
 name: "Building standards technical handbook January 2025 — Domestic (with July 2025 update)"
 url: "https://www.gov.scot/publications/building-standards-technical-handbook-january-2025-domestic/"
 pdf_selector: "a[href$='.pdf']"
-version_regex: '(January\s+2025)(.*July\s+2025\s+update)?'
+version_regex: "(January\\s+2025)(.*July\\s+2025\\s+update)?"
 history_url: "https://www.gov.scot/collections/building-standards/"
 EOF
           fi
@@ -86,8 +86,8 @@ jurisdiction: northern-ireland
 track: "F1 — Conservation of fuel and power in dwellings"
 name: "Technical Booklet F1 (June 2022)"
 url: "https://www.finance-ni.gov.uk/articles/building-regulations-technical-booklets"
-pdf_selector: "a[href*='technical-booklet-f1'][href$='.pdf'], a:contains('F1')"
-version_regex: '(June\s+2022|2022)'
+pdf_selector: "a[href*='technical-booklet-f1'][href$='.pdf']"
+version_regex: "(June\\s+2022|2022)"
 history_url: "https://www.finance-ni.gov.uk/articles/building-regulations-technical-booklets"
 EOF
           fi
@@ -98,8 +98,8 @@ jurisdiction: northern-ireland
 track: "F2 — Conservation of fuel and power in buildings other than dwellings"
 name: "Technical Booklet F2 (June 2022)"
 url: "https://www.finance-ni.gov.uk/articles/building-regulations-technical-booklets"
-pdf_selector: "a[href*='technical-booklet-f2'][href$='.pdf'], a:contains('F2')"
-version_regex: '(June\s+2022|2022)'
+pdf_selector: "a[href*='technical-booklet-f2'][href$='.pdf']"
+version_regex: "(June\\s+2022|2022)"
 history_url: "https://www.finance-ni.gov.uk/articles/building-regulations-technical-booklets"
 EOF
           fi
@@ -124,6 +124,9 @@ EOF
       - name: Render static site (to docs/)
         run: |
           python scripts/render_site.py --registry registry/current.json --templates templates --out docs
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
