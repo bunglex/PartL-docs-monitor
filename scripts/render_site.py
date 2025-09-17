@@ -1,38 +1,27 @@
-import json, pathlib, sys
-from jinja2 import Environment, FileSystemLoader, select_autoescape, TemplateNotFound
+#!/usr/bin/env python3
+import argparse, json
+from pathlib import Path
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-# Load data (tolerate missing/invalid JSON)
-try:
-    data = json.load(open("registry/current.json", "r", encoding="utf-8"))
-    if not isinstance(data, list):
-        data = []
-except FileNotFoundError:
-    data = []
-except Exception as e:
-    print(f"[WARN] bad registry/current.json: {e}", file=sys.stderr)
-    data = []
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--registry", required=True)
+    ap.add_argument("--templates", required=True)
+    ap.add_argument("--out", required=True)
+    args = ap.parse_args()
 
-# Ensure folders
-pathlib.Path("docs/history").mkdir(parents=True, exist_ok=True)
+    data = json.loads(Path(args.registry).read_text(encoding="utf-8"))
+    env = Environment(
+        loader=FileSystemLoader(args.templates),
+        autoescape=select_autoescape(["html", "xml"])
+    )
+    tmpl = env.get_template("doc.html.j2")
+    html = tmpl.render(items=data.get("items", []), machine_json="current.json")
+    outdir = Path(args.out)
+    outdir.mkdir(parents=True, exist_ok=True)
+    (outdir/"index.html").write_text(html, encoding="utf-8")
+    # also copy the json into docs for the link
+    (outdir/"current.json").write_text(json.dumps(data, indent=2), encoding="utf-8")
 
-# Try to load templates; fall back to a minimal page if missing
-env = Environment(loader=FileSystemLoader("templates"),
-                  autoescape=select_autoescape(["html"]))
-
-def write(path, content):
-    pathlib.Path(path).write_text(content, encoding="utf-8")
-
-try:
-    index_tpl = env.get_template("index.html.j2")
-    doc_tpl = env.get_template("doc.html.j2")
-except TemplateNotFound as e:
-    write("docs/index.html",
-          "<h1>Building Energy Docs</h1><p>No template found or no data yet.</p>")
-else:
-    write("docs/index.html", index_tpl.render(items=data))
-    for it in data:
-        write(f"docs/history/{it['slug']}.html", doc_tpl.render(item=it))
-
-# Always write machine-readable JSON
-write("docs/current.json", json.dumps(data, indent=2))
-print("[INFO] render_site complete; items:", len(data))
+if __name__ == "__main__":
+    main()
