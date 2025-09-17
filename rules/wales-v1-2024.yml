@@ -1,1 +1,8 @@
-# Wales Part L (stub)
+jurisdiction: wales
+track: "Volume 1 — Dwellings"
+name: "Approved Document L — Volume 1 (2022 with 2024 amendments)"
+start_url: "https://www.gov.wales/building-regulations-approved-document-l-vol-1"
+selector: "a[href$='.pdf']"
+text_includes: ["Volume 1"]
+version_regex: "(2024|2022)"
+history_url: "https://www.gov.wales/building-regulations"
