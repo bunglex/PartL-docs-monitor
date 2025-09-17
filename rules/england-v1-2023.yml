@@ -3,9 +3,10 @@ track: "Volume 1 — Dwellings"
 name: "Conservation of fuel and power: Approved Document L — Volume 1 — Dwellings"
 start_url: "https://www.gov.uk/government/publications/conservation-of-fuel-and-power-approved-document-l"
 selector: "a[href$='.pdf']"
-url_includes_all: ["volume-1", "dwellings"]
-url_excludes_any: ["volume-2", "buildings-other-than-dwellings"]
-text_includes_all: ["Volume 1"]
+# Use ANY-match tokens. URLs vary (may not include 'dwellings').
+url_includes_any: ["volume-1", "vol-1", "vol1", "adl1"]
+url_excludes_any: ["volume-2", "vol-2", "vol2", "adl2"]
+text_includes_any: ["Volume 1", "Dwellings"]
 text_excludes_any: ["Volume 2"]
 version_regex: "(20\\d{2})"
 history_url: "https://www.gov.uk/government/collections/approved-documents"
