@@ -1,27 +1,6 @@
-name: "PartL Monitor — Crawl & Publish"
-
-on:
-  push:
-    branches: [ master ]
-  workflow_dispatch: {}
-  schedule:
-    - cron: "17 7 * * 1"   # every Monday 07:17 London
-
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
-
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
-    env:
-      PYTHONUNBUFFERED: "1"
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,18 +17,16 @@ jobs:
 
       - name: Prepare output folders
         run: |
-          mkdir -p docs docs/archive docs/diffs history texts archive diffs registry rules templates scripts
+          mkdir -p docs docs/archive docs/diffs history texts archive diffs registry
 
+      # ↓ Replace your old crawl step with this
       - name: Crawl (write registry/current.json)
         run: |
-          python scripts/check_partl.py --rules rules --out registry/current.json
+          python scripts/check_partl.py --rules rules --out registry/current.json --debug
 
       - name: Render static site (to docs/)
         run: |
-          python scripts/render_site.py \
-            --registry registry/current.json \
-            --templates templates \
-            --out docs
+          python scripts/render_site.py --registry registry/current.json --templates templates --out docs
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
