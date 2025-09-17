@@ -1,7 +1,14 @@
 #!/usr/bin/env python3
 """
 check_partl.py — crawl rule files and write registry/current.json
-Two-hop logic: start page -> (if needed) follow best-matching child pages, then pick PDF.
+
+- Two-hop crawl: start page -> relevant child pages -> (optional) attachment pages.
+- Strict include/exclude matching to keep V1 != V2, etc.
+- Debug mode (--debug) prints top link candidates on each page.
+
+Usage:
+  python scripts/check_partl.py --rules rules --out registry/current.json
+  python scripts/check_partl.py --rules rules --out registry/current.json --expected 8 --debug
 """
 
 import argparse, json, re, sys, urllib.parse
@@ -11,69 +18,6 @@ import requests
 from bs4 import BeautifulSoup
 import yaml
 
-def hop_then_find_pdf(start_url: str, rule: dict, hop_limit: int = 5) -> Tuple[Optional[str], Optional[str]]:
-    """
-    1) Try to find PDF on start_url.
-    2) If none, follow up to hop_limit best non-PDF links on same domain and search there.
-    3) If still none, from each child page, follow up to 5 'attachment-like' pages (HTML pages)
-       whose text/URL looks relevant, then search those for PDFs.
-    """
-    start_html = fetch_html(start_url)
-    start_soup = BeautifulSoup(start_html, "lxml")
-
-    # 1) Direct on start page
-    pdf, txt = find_pdf_on_page(start_url, start_soup, rule)
-    if pdf:
-        return pdf, txt
-
-    def candidate_links(soup, base_url, max_links=hop_limit):
-        cands = []
-        for a in soup.find_all("a", href=True):
-            href = a["href"]
-            if href.lower().endswith(".pdf"):
-                continue
-            dest = abs_url(base_url, href)
-            # keep within same domain for HTML pages
-            if domain_of(dest) != domain_of(base_url):
-                continue
-            score = score_link(a.get_text() or "", href, rule)
-            cands.append((score, dest, a.get_text() or ""))
-        cands.sort(reverse=True)
-        return cands[:max_links]
-
-    # 2) Follow best child pages
-    for score, dest, text in candidate_links(start_soup, start_url):
-        try:
-            html = fetch_html(dest)
-        except Exception:
-            continue
-        soup = BeautifulSoup(html, "lxml")
-        pdf, txt = find_pdf_on_page(dest, soup, rule, context_text=text)
-        if pdf:
-            return pdf, txt
-
-        # 3) From each child page, follow 'attachment-like' pages (HTML) and search there
-        attach_cands = []
-        for a in soup.find_all("a", href=True):
-            href = a["href"]
-            if href.lower().endswith(".pdf"):
-                continue
-            # attachment-like URLs that often lead to assets PDF
-            if any(key in href.lower() for key in ["attachment", "/publications/", "/guidance/"]):
-                sc = score_link(a.get_text() or "", href, rule)
-                attach_cands.append((sc, abs_url(dest, href), a.get_text() or ""))
-        attach_cands.sort(reverse=True)
-        for sc2, attach_url, txt2 in attach_cands[:5]:
-            try:
-                html2 = fetch_html(attach_url)
-            except Exception:
-                continue
-            soup2 = BeautifulSoup(html2, "lxml")
-            pdf, txt = find_pdf_on_page(attach_url, soup2, rule, context_text=(text + " " + txt2))
-            if pdf:
-                return pdf, txt
-
-    return None, None
 
 # ---------------- utils ----------------
 
@@ -126,26 +70,28 @@ def score_link(text: str, href: str, rule: dict) -> int:
     for s in txt_inc_any:
         if s.lower() in t: score += 5
 
-    if h.endswith(".pdf"): score += 3
-    if "volume-1" in h: score += 1
-    if "volume-2" in h: score += 1
+    if ".pdf" in h: score += 3
+    if "volume-1" in h or "volume_1" in h: score += 1
+    if "volume-2" in h or "volume_2" in h: score += 1
     return score
 
 
 # ---------------- core finders ----------------
 
 def find_pdf_on_page(page_url: str, soup: BeautifulSoup, rule: dict,
-                     context_text: str = "", top_n: int = 50) -> Tuple[Optional[str], Optional[str]]:
-    """Search the current page for PDFs, filtered by rule + context (from the link that led here)."""
-    anchors = soup.select("a[href$='.pdf']") or []
+                     context_text: str = "", top_n: int = 200, debug: bool = False
+                     ) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Search the current page for PDFs, filtered by rule + context (from the link that led here).
+    Prints top candidates when --debug is set.
+    """
+    anchors = soup.select("a[href$='.pdf'], a[href*='.pdf']") or []
     anchors = anchors[:top_n]
+
     url_exc_any = _norm_list(rule.get("url_excludes_any")) + _norm_list(rule.get("url_excludes"))
     txt_exc_any = _norm_list(rule.get("text_excludes_any")) + _norm_list(rule.get("text_excludes"))
     url_inc_any = _norm_list(rule.get("url_includes_any")) + _norm_list(rule.get("url_includes"))
     txt_inc_any = _norm_list(rule.get("text_includes_any")) + _norm_list(rule.get("text_includes"))
-
-    # allow context text (e.g., child link said "Volume 1") to satisfy text includes
-    context = context_text or ""
 
     ranked = sorted(
         anchors,
@@ -153,9 +99,22 @@ def find_pdf_on_page(page_url: str, soup: BeautifulSoup, rule: dict,
         reverse=True,
     )
 
+    if debug:
+        print(f"[PAGE] {page_url} — PDF candidates (top 10):")
+        for i, cand in enumerate(ranked[:10], 1):
+            c_href = cand.get("href", "")
+            c_text = (cand.get_text() or "").strip().replace("\n", " ")
+            print(f"[CAND] #{i} text='{c_text[:100]}' href='{c_href}'")
+
+    # allow context text (e.g., child link said "Volume 1") to satisfy text includes
+    context = context_text or ""
+
     for a in ranked:
         href = a.get("href") or ""
         text = a.get_text() or ""
+
+        if not href.lower().endswith(".pdf") and ".pdf" not in href.lower():
+            continue
 
         if contains_any(href, url_exc_any) or contains_any(text, txt_exc_any):
             continue
@@ -174,52 +133,81 @@ def find_pdf_on_page(page_url: str, soup: BeautifulSoup, rule: dict,
     return None, None
 
 
-def hop_then_find_pdf(start_url: str, rule: dict, hop_limit: int = 5) -> Tuple[Optional[str], Optional[str]]:
+def hop_then_find_pdf(start_url: str, rule: dict, hop_limit: int = 5, debug: bool = False
+                      ) -> Tuple[Optional[str], Optional[str]]:
     """
     1) Try to find PDF on start_url.
-    2) If none, follow up to hop_limit best non-PDF links that look like the intended volume page.
-       Only follow links on the same domain.
+    2) If none, follow up to hop_limit best non-PDF links on same domain and search there.
+    3) If still none, from each child page, follow up to 5 'attachment-like' pages and search there.
     """
     start_html = fetch_html(start_url)
     start_soup = BeautifulSoup(start_html, "lxml")
 
-    # Try direct PDFs first
-    pdf, txt = find_pdf_on_page(start_url, start_soup, rule)
+    # 1) Direct on start page
+    pdf, txt = find_pdf_on_page(start_url, start_soup, rule, debug=debug)
     if pdf:
         return pdf, txt
 
-    # Otherwise, pick candidate child pages (not PDFs) and follow
-    netloc = domain_of(start_url)
-    candidates = []
-    for a in start_soup.find_all("a", href=True):
-        href = a["href"]
-        if href.lower().endswith(".pdf"):
-            continue
-        dest = abs_url(start_url, href)
-        if domain_of(dest) != netloc:
-            continue  # stay on same domain
-        score = score_link(a.get_text() or "", href, rule)
-        candidates.append((score, dest, a.get_text() or ""))
+    def candidate_links(soup, base_url, max_links=hop_limit):
+        cands = []
+        for a in soup.find_all("a", href=True):
+            href = a["href"]
+            if ".pdf" in href.lower():
+                continue
+            dest = abs_url(base_url, href)
+            if domain_of(dest) != domain_of(base_url):
+                continue
+            score = score_link(a.get_text() or "", href, rule)
+            cands.append((score, dest, a.get_text() or ""))
+        cands.sort(reverse=True)
+        return cands[:max_links]
 
-    candidates.sort(reverse=True)
-    for score, dest, text in candidates[:hop_limit]:
+    # 2) Follow best child pages
+    for score, dest, text in candidate_links(start_soup, start_url):
+        if debug:
+            print(f"[HOP] -> {dest}  (score={score}, text='{(text or '').strip()[:100]}')")
         try:
             html = fetch_html(dest)
-        except Exception:
+        except Exception as e:
+            if debug: print(f"[HOP-ERR] {dest}: {e}")
             continue
         soup = BeautifulSoup(html, "lxml")
-        pdf, txt = find_pdf_on_page(dest, soup, rule, context_text=text)
+        pdf, txt = find_pdf_on_page(dest, soup, rule, context_text=text, debug=debug)
         if pdf:
             return pdf, txt
+
+        # 3) From each child page, follow 'attachment-like' pages (HTML) and search there
+        attach_cands = []
+        for a in soup.find_all("a", href=True):
+            href = a["href"]
+            if ".pdf" in href.lower():
+                continue
+            if any(key in href.lower() for key in ["attachment", "/publications/", "/guidance/"]):
+                sc = score_link(a.get_text() or "", href, rule)
+                attach_cands.append((sc, abs_url(dest, href), a.get_text() or ""))
+        attach_cands.sort(reverse=True)
+        for sc2, attach_url, txt2 in attach_cands[:5]:
+            if debug:
+                print(f"[ATTACH] -> {attach_url}  (score={sc2}, text='{(txt2 or '').strip()[:100]}')")
+            try:
+                html2 = fetch_html(attach_url)
+            except Exception as e:
+                if debug: print(f"[ATTACH-ERR] {attach_url}: {e}")
+                continue
+            soup2 = BeautifulSoup(html2, "lxml")
+            pdf, txt = find_pdf_on_page(attach_url, soup2, rule,
+                                        context_text=f"{text} {txt2}", debug=debug)
+            if pdf:
+                return pdf, txt
 
     return None, None
 
 
-def process_rule(path: Path) -> dict:
+def process_rule(path: Path, debug: bool = False) -> dict:
     rule = yaml.safe_load(path.read_text(encoding="utf-8"))
     start_url = rule["start_url"]
 
-    pdf_url, link_text = hop_then_find_pdf(start_url, rule)
+    pdf_url, link_text = hop_then_find_pdf(start_url, rule, debug=debug)
     if not pdf_url:
         raise RuntimeError("no matching PDF found")
 
@@ -244,6 +232,7 @@ def main():
     ap.add_argument("--rules", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--expected", type=int, default=0)
+    ap.add_argument("--debug", action="store_true", help="print candidate links while crawling")
     args = ap.parse_args()
 
     rules_dir = Path(args.rules)
@@ -252,7 +241,7 @@ def main():
     items = []
     for rf in rule_files:
         try:
-            item = process_rule(rf)
+            item = process_rule(rf, debug=args.debug)
             print(f"[OK] {rf.name} -> {item['pdf']}")
             items.append(item)
         except Exception as e:
