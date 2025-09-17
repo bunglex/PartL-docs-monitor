@@ -24,7 +24,7 @@
         <p class="card-text text-muted mb-0">Tracking <strong>{{ items|length }}</strong> energy document{{ items|length != 1 and "s" or "" }} across jurisdictions.</p>
       </div>
     </section>
-    <div class="table-responsive shadow-sm">
+    <div class="table-responsive shadow-sm d-none d-md-block">
       <table class="table table-striped table-hover align-middle mb-3">
         <thead class="table-light">
           <tr>
@@ -51,6 +51,34 @@
         {% endfor %}
         </tbody>
       </table>
+    </div>
+    <div class="d-md-none">
+      <div class="row g-3">
+        {% for it in items %}
+        <div class="col-12">
+          <article class="card shadow-sm h-100">
+            <div class="card-body">
+              <div class="d-flex justify-content-between align-items-start mb-2">
+                <div>
+                  <p class="badge bg-primary-subtle text-primary-emphasis text-uppercase mb-1">{{ it.jurisdiction }}</p>
+                  <h2 class="h5 mb-0">{{ it.name }}</h2>
+                </div>
+                <span class="badge bg-secondary-subtle text-secondary-emphasis">v{{ it.rule_version }}</span>
+              </div>
+              <p class="text-muted small mb-3">{{ it.track_title or it.track }}</p>
+              <dl class="row mb-3">
+                <dt class="col-5 text-muted">Issued</dt>
+                <dd class="col-7">{{ it.issued or "—" }}</dd>
+              </dl>
+              <div class="d-flex gap-2">
+                <a class="btn btn-sm btn-outline-primary flex-fill" href="{{ it.source_url }}" target="_blank" rel="noopener">Open PDF</a>
+                <a class="btn btn-sm btn-outline-secondary flex-fill" href="history/{{ it.slug }}.html">History</a>
+              </div>
+            </div>
+          </article>
+        </div>
+        {% endfor %}
+      </div>
     </div>
     <p class="text-muted">Machine-readable dataset: <a href="current.json" class="link-primary">current.json</a></p>
   </main>
