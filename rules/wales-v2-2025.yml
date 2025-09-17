@@ -1,0 +1,8 @@
+jurisdiction: wales
+track: "Volume 2 — Buildings other than dwellings"
+name: "Approved Document L — Volume 2 — Buildings other than dwellings"
+start_url: "https://www.gov.wales/building-regulations-approved-document-l-vol-2"
+selector: "a[href$='.pdf']"
+text_includes: ["Volume 2", "Buildings other than dwellings"]
+version_regex: "(2025|2024|2022)"
+history_url: "https://www.gov.wales/building-regulations"
