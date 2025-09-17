@@ -1,6 +1,27 @@
+name: "PartL Monitor — Crawl & Publish"
+
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch: {}
+  schedule:
+    - cron: "17 7 * * 1"   # Mondays 07:17 London
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
+    env:
+      PYTHONUNBUFFERED: "1"
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -19,7 +40,6 @@ jobs:
         run: |
           mkdir -p docs docs/archive docs/diffs history texts archive diffs registry
 
-      # ↓ Replace your old crawl step with this
       - name: Crawl (write registry/current.json)
         run: |
           python scripts/check_partl.py --rules rules --out registry/current.json --debug
