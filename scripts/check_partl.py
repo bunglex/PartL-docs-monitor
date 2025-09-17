@@ -1,150 +1,162 @@
 #!/usr/bin/env python3
 """
-check_partl.py
-Crawls rule files and writes a machine-readable registry JSON.
-
-Usage:
-  python scripts/check_partl.py --rules rules --out registry/current.json
-  (optional) --expected 8   # fail loudly if we fetch too few items
+check_partl.py — crawl rule files and write registry/current.json
+Two-hop logic: start page -> (if needed) follow best-matching child pages, then pick PDF.
 """
 
-import argparse
-import json
-import re
-import sys
-import urllib.parse
+import argparse, json, re, sys, urllib.parse
 from pathlib import Path
-
+from typing import List, Tuple, Optional
 import requests
 from bs4 import BeautifulSoup
 import yaml
 
 
-# ---------- helpers ----------
+# ---------------- utils ----------------
 
 def abs_url(base: str, href: str) -> str:
     return urllib.parse.urljoin(base, href)
 
+def domain_of(url: str) -> str:
+    return urllib.parse.urlparse(url).netloc.lower()
 
 def fetch_html(url: str) -> str:
-    r = requests.get(
-        url,
-        timeout=30,
-        headers={"User-Agent": "PartL-Docs-Monitor/1.0 (+github)"},
-    )
+    r = requests.get(url, timeout=30, headers={"User-Agent": "PartL-Docs-Monitor/1.0"})
     r.raise_for_status()
     return r.text
 
+def _norm_list(v):
+    if not v:
+        return []
+    return v if isinstance(v, list) else [v]
 
-def extract_version(text: str, url: str, regex: str | None) -> str | None:
+def contains_any(hay: str, needles: List[str]) -> bool:
+    hay = hay.lower()
+    return any(n.lower() in hay for n in needles) if needles else False
+
+def contains_all(hay: str, needles: List[str]) -> bool:
+    hay = hay.lower()
+    return all(n.lower() in hay for n in needles) if needles else True
+
+def extract_version(text: str, url: str, regex: Optional[str]) -> Optional[str]:
     if not regex:
         return None
     m = re.search(regex, text or "", flags=re.I)
-    if m:
-        return (m.group(0) or "").strip()
+    if m: return (m.group(0) or "").strip()
     m = re.search(regex, url or "", flags=re.I)
-    if m:
-        return (m.group(0) or "").strip()
+    if m: return (m.group(0) or "").strip()
     return None
 
 
-def _norm_list(v, default=None):
-    if v is None:
-        return default or []
-    if isinstance(v, str):
-        return [v]
-    return list(v)
+# ---------------- scoring ----------------
 
+def score_link(text: str, href: str, rule: dict) -> int:
+    t = (text or "").lower()
+    h = (href or "").lower()
 
-def _contains_all(hay: str, needles) -> bool:
-    needles = _norm_list(needles)
-    return all(n.lower() in hay.lower() for n in needles) if needles else True
-
-
-def _contains_any(hay: str, needles) -> bool:
-    needles = _norm_list(needles)
-    return any(n.lower() in hay.lower() for n in needles) if needles else False
-
-
-def score_anchor(a, rule) -> int:
-    """Light heuristic to rank anchors before hard filters."""
-    text = (a.get_text() or "").strip()
-    href = (a.get("href") or "").lower()
-    t = text.lower()
-
-    url_inc_any = _norm_list(rule.get("url_includes")) + _norm_list(rule.get("url_includes_any"))
-    text_inc_any = _norm_list(rule.get("text_includes")) + _norm_list(rule.get("text_includes_any"))
+    url_inc_any = _norm_list(rule.get("url_includes_any")) + _norm_list(rule.get("url_includes"))
+    txt_inc_any = _norm_list(rule.get("text_includes_any")) + _norm_list(rule.get("text_includes"))
 
     score = 0
     for s in url_inc_any:
-        if s.lower() in href:
-            score += 6
-    for s in text_inc_any:
-        if s.lower() in t:
-            score += 5
+        if s.lower() in h: score += 6
+    for s in txt_inc_any:
+        if s.lower() in t: score += 5
 
-    if href.endswith(".pdf"):
-        score += 2
-    if "volume-1" in href:
-        score += 1
-    if "volume-2" in href:
-        score += 1
+    if h.endswith(".pdf"): score += 3
+    if "volume-1" in h: score += 1
+    if "volume-2" in h: score += 1
     return score
 
 
-# ---------- core ----------
+# ---------------- core finders ----------------
 
-def pick_pdf(start_url: str, selector: str, rule: dict) -> tuple[str | None, str | None]:
-    html = fetch_html(start_url)
-    soup = BeautifulSoup(html, "lxml")
+def find_pdf_on_page(page_url: str, soup: BeautifulSoup, rule: dict,
+                     context_text: str = "", top_n: int = 50) -> Tuple[Optional[str], Optional[str]]:
+    """Search the current page for PDFs, filtered by rule + context (from the link that led here)."""
+    anchors = soup.select("a[href$='.pdf']") or []
+    anchors = anchors[:top_n]
+    url_exc_any = _norm_list(rule.get("url_excludes_any")) + _norm_list(rule.get("url_excludes"))
+    txt_exc_any = _norm_list(rule.get("text_excludes_any")) + _norm_list(rule.get("text_excludes"))
+    url_inc_any = _norm_list(rule.get("url_includes_any")) + _norm_list(rule.get("url_includes"))
+    txt_inc_any = _norm_list(rule.get("text_includes_any")) + _norm_list(rule.get("text_includes"))
 
-    anchors = soup.select(selector) or soup.select("a[href$='.pdf']") or soup.find_all("a")
-    ranked = sorted(anchors, key=lambda a: score_anchor(a, rule), reverse=True)
+    # allow context text (e.g., child link said "Volume 1") to satisfy text includes
+    context = context_text or ""
 
-    # Gather rule constraints (support both old and new key styles)
-    url_inc_all = _norm_list(rule.get("url_includes_all"))
-    url_inc_any = _norm_list(rule.get("url_includes")) + _norm_list(rule.get("url_includes_any"))
-    url_exc_any = _norm_list(rule.get("url_excludes")) + _norm_list(rule.get("url_excludes_any"))
-
-    txt_inc_all = _norm_list(rule.get("text_includes_all"))
-    txt_inc_any = _norm_list(rule.get("text_includes")) + _norm_list(rule.get("text_includes_any"))
-    txt_exc_any = _norm_list(rule.get("text_excludes")) + _norm_list(rule.get("text_excludes_any"))
+    ranked = sorted(
+        anchors,
+        key=lambda a: score_link(a.get_text() or "", a.get("href") or "", rule),
+        reverse=True,
+    )
 
     for a in ranked:
         href = a.get("href") or ""
-        text = (a.get_text() or "")
+        text = a.get_text() or ""
 
-        if not href.lower().endswith(".pdf"):
-            continue
-
-        # Hard rejections
-        if _contains_any(href, url_exc_any) or _contains_any(text, txt_exc_any):
+        if contains_any(href, url_exc_any) or contains_any(text, txt_exc_any):
             continue
 
-        # Must satisfy ALL includes if provided
-        if not _contains_all(href, url_inc_all):
-            continue
-        if not _contains_all(text, txt_inc_all):
-            continue
+        # Must match at least one include across URL/text/context if includes are provided.
+        any_tokens = (url_inc_any or txt_inc_any)
+        if any_tokens:
+            any_ok = (contains_any(href, url_inc_any) or
+                      contains_any(text, txt_inc_any) or
+                      contains_any(context, txt_inc_any))
+            if not any_ok:
+                continue
 
-        # If any-include lists are present, require at least one match (URL or text separately)
-        if url_inc_any and not _contains_any(href, url_inc_any):
-            continue
-        if txt_inc_any and not _contains_any(text, txt_inc_any):
-            continue
+        return abs_url(page_url, href), text.strip()
 
-        return abs_url(start_url, href), text.strip()
+    return None, None
+
+
+def hop_then_find_pdf(start_url: str, rule: dict, hop_limit: int = 5) -> Tuple[Optional[str], Optional[str]]:
+    """
+    1) Try to find PDF on start_url.
+    2) If none, follow up to hop_limit best non-PDF links that look like the intended volume page.
+       Only follow links on the same domain.
+    """
+    start_html = fetch_html(start_url)
+    start_soup = BeautifulSoup(start_html, "lxml")
+
+    # Try direct PDFs first
+    pdf, txt = find_pdf_on_page(start_url, start_soup, rule)
+    if pdf:
+        return pdf, txt
+
+    # Otherwise, pick candidate child pages (not PDFs) and follow
+    netloc = domain_of(start_url)
+    candidates = []
+    for a in start_soup.find_all("a", href=True):
+        href = a["href"]
+        if href.lower().endswith(".pdf"):
+            continue
+        dest = abs_url(start_url, href)
+        if domain_of(dest) != netloc:
+            continue  # stay on same domain
+        score = score_link(a.get_text() or "", href, rule)
+        candidates.append((score, dest, a.get_text() or ""))
+
+    candidates.sort(reverse=True)
+    for score, dest, text in candidates[:hop_limit]:
+        try:
+            html = fetch_html(dest)
+        except Exception:
+            continue
+        soup = BeautifulSoup(html, "lxml")
+        pdf, txt = find_pdf_on_page(dest, soup, rule, context_text=text)
+        if pdf:
+            return pdf, txt
 
     return None, None
 
 
 def process_rule(path: Path) -> dict:
     rule = yaml.safe_load(path.read_text(encoding="utf-8"))
-
     start_url = rule["start_url"]
-    selector = rule.get("selector", "a[href$='.pdf']")
 
-    pdf_url, link_text = pick_pdf(start_url, selector, rule)
+    pdf_url, link_text = hop_then_find_pdf(start_url, rule)
     if not pdf_url:
         raise RuntimeError("no matching PDF found")
 
@@ -165,10 +177,10 @@ def process_rule(path: Path) -> dict:
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Crawl Part L rules and write current.json")
-    ap.add_argument("--rules", required=True, help="Directory containing *.yml rule files")
-    ap.add_argument("--out", required=True, help="Path to output JSON (e.g., registry/current.json)")
-    ap.add_argument("--expected", type=int, default=0, help="Optional: expected item count")
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--rules", required=True)
+    ap.add_argument("--out", required=True)
+    ap.add_argument("--expected", type=int, default=0)
     args = ap.parse_args()
 
     rules_dir = Path(args.rules)
@@ -185,14 +197,13 @@ def main():
 
     items.sort(key=lambda x: (x["jurisdiction"], x["track"]))
 
-    out_path = Path(args.out)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps({"items": items}, indent=2), encoding="utf-8")
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps({"items": items}, indent=2), encoding="utf-8")
+    print(f"[SUMMARY] wrote {out} with {len(items)} items from {len(rule_files)} rules")
 
-    print(f"[SUMMARY] wrote {out_path} with {len(items)} items from {len(rule_files)} rules")
     if args.expected and len(items) < args.expected:
         print(f"[ERROR] too few items: {len(items)} (expected ~{args.expected})", file=sys.stderr)
-        # Non-zero exit to flag CI
         sys.exit(2)
 
 
