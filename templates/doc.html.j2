@@ -1,27 +1,47 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>{{ item.name }} — {{ item.jurisdiction }}</title>
+  <meta charset="utf-8"/>
+  <title>Building Energy Docs – Monitor</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:2rem;}
+    h1{margin:0 0 1rem 0;}
+    table{border-collapse:collapse;width:100%;}
+    th,td{border:1px solid #ddd;padding:.6rem;text-align:left;vertical-align:top;}
+    th{background:#f7f7f7;}
+    a{word-break:break-all;}
+    .meta{margin:.6rem 0 1.2rem 0;color:#555}
+  </style>
 </head>
 <body>
-  <p><a href="../index.html">← Back</a></p>
-  <h1>{{ item.name }} — {{ item.jurisdiction }}</h1>
-  <p>Track: {{ item.track_title or item.track }}</p>
-  <p>Issued: {{ item.issued or "—" }}</p>
-  <p>Version: {{ item.rule_version }}</p>
-  <p>Current PDF: <a href="{{ item.source_url }}">{{ item.source_url }}</a></p>
-
-  <h2>History</h2>
-  <ul>
-  {% for h in item.history|reverse %}
-    <li>
-      {{ h.date }} — checksum: {{ h.checksum }}
-      {% if h.issued %} — issued: {{ h.issued }}{% endif %}
-      {% if h.archived_pdf %} — <a href="../{{ h.archived_pdf }}">archived PDF</a>{% endif %}
-      {% if h.diff %} — <a href="../{{ h.diff }}">diff</a>{% endif %}
-    </li>
-  {% endfor %}
-  </ul>
+  <h1>Building Energy Docs – Monitor</h1>
+  <div class="meta">Machine-readable: <a href="{{ machine_json }}">current.json</a></div>
+  <table>
+    <thead>
+      <tr>
+        <th>Jurisdiction</th>
+        <th>Track</th>
+        <th>Name</th>
+        <th>Issued</th>
+        <th>Version</th>
+        <th>PDF</th>
+        <th>History</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for it in items %}
+      <tr>
+        <td>{{ it.jurisdiction }}</td>
+        <td>{{ it.track }}</td>
+        <td>{{ it.name }}</td>
+        <td>{{ it.issued }}</td>
+        <td>{{ it.version }}</td>
+        <td><a href="{{ it.pdf }}" target="_blank" rel="noopener">Open PDF</a></td>
+        <td><a href="{{ it.history }}" target="_blank" rel="noopener">History</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </body>
 </html>
