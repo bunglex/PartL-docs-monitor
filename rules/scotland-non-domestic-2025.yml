@@ -1,0 +1,9 @@
+jurisdiction: scotland
+track: "Non-domestic Handbook — Section 6"
+name: "Building standards technical handbook — Non-domestic"
+start_url: "https://www.gov.scot/publications/building-standards-technical-handbook-january-2025-non-domestic/"
+selector: "a[href$='.pdf']"
+text_includes: ["Non-domestic"]
+text_excludes: ["Domestic"]
+version_regex: "(January\\s+2025|2025)"
+history_url: "https://www.gov.scot/collections/building-standards/"
