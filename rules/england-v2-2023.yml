@@ -1,8 +1,11 @@
 jurisdiction: england
 track: "Volume 2 — Buildings other than dwellings"
-name: "Approved Document L (2021 edition, incorporating 2023 amendments) — Volume 2"
-url: "https://www.gov.uk/government/publications/conservation-of-fuel-and-power-approved-document-l"
-# match the buildings-other-than-dwellings PDF
-pdf_selector: "a[href$='.pdf'][href*='Volume_2']"
-version_regex: "(20\\d{2}\\s+edition\\s+incorporating\\s+20\\d{4}\\s+amendments|20\\d{2}\\s+edition)"
+name: "Conservation of fuel and power: Approved Document L — Volume 2 — Buildings other than dwellings"
+start_url: "https://www.gov.uk/government/publications/conservation-of-fuel-and-power-approved-document-l"
+selector: "a[href$='.pdf']"
+url_includes: ["volume-2", "buildings-other-than-dwellings"]
+url_excludes: ["volume-1"]
+text_includes: ["Volume 2", "Buildings other than dwellings"]
+text_excludes: ["Volume 1", "Dwellings"]
+version_regex: "(20\\d{2})"
 history_url: "https://www.gov.uk/government/collections/approved-documents"
