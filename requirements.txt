@@ -1,0 +1,6 @@
+requests
+beautifulsoup4
+lxml
+jinja2
+pyyaml
+html5lib
