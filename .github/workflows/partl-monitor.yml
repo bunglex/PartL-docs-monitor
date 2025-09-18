@@ -44,39 +44,44 @@ jobs:
         run: |
           python scripts/check_partl.py --rules rules --out registry/current.json --debug
 
-      # ➜ Add a timestamp so the UI can show "Checked"
+      # Add a timestamp each run so the UI can show "Checked"
       - name: Stamp checked_at on results
         env:
           JSON_PATH: registry/current.json
         run: |
           python - <<'PY'
-import json, os, datetime
-p = os.environ['JSON_PATH']
-with open(p, 'r', encoding='utf-8') as f:
-    data = json.load(f)
-now = datetime.datetime.utcnow().replace(microsecond=0).isoformat() + 'Z'
-items = data.get('items', data)
-for row in items:
-    row['checked_at'] = now
-if isinstance(data, dict) and 'items' in data:
-    data['items'] = items
-else:
-    data = items
-with open(p, 'w', encoding='utf-8') as f:
-    json.dump(data, f, ensure_ascii=False, indent=2)
-print(f'Stamped {len(items)} items at {now}')
+          import json, os, datetime
+          p = os.environ['JSON_PATH']
+          with open(p, 'r', encoding='utf-8') as f:
+              data = json.load(f)
+
+          now = datetime.datetime.utcnow().replace(microsecond=0).isoformat() + 'Z'
+          items = data.get('items', data)
+
+          for row in items:
+              row['checked_at'] = now
+
+          if isinstance(data, dict) and 'items' in data:
+              data['items'] = items
+          else:
+              data = items
+
+          with open(p, 'w', encoding='utf-8') as f:
+              json.dump(data, f, ensure_ascii=False, indent=2)
+
+          print(f'Stamped {len(items)} items at {now}')
 PY
 
-      # ➜ Generate PDF thumbnails (uses Poppler's pdftoppm)
+      # Generate PDF thumbnails (uses Poppler's pdftoppm)
       - name: Install Poppler (for pdftoppm)
         run: sudo apt-get update && sudo apt-get install -y poppler-utils
 
       - name: Generate PDF thumbnails (writes docs/thumbs & updates registry/current.json)
         env:
           OUT_DIR: docs                    # thumbnails placed here for Pages
-          JSON_PATH: registry/current.json # enriches this JSON with thumb_url
+          JSON_PATH: registry/current.json # enrich this JSON with thumb_url
         run: |
-          python scripts/make_thumbs.py    # (you already have this file in scripts/)
+          python scripts/make_thumbs.py
 
       - name: Render static site (to docs/)
         run: |
