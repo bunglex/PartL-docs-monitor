@@ -205,7 +205,9 @@ def hop_then_find_pdf(start_url: str, rule: dict, hop_limit: int = 5, debug: boo
 
 def process_rule(path: Path, debug: bool = False) -> dict:
     rule = yaml.safe_load(path.read_text(encoding="utf-8"))
-    start_url = rule["start_url"]
+    start_url = rule.get("start_url") or rule.get("url")
+    if not start_url:
+        raise KeyError("rule must define 'start_url' (or legacy 'url')")
 
     pdf_url, link_text = hop_then_find_pdf(start_url, rule, debug=debug)
     if not pdf_url:
@@ -247,7 +249,7 @@ def main():
         except Exception as e:
             print(f"[MISS] {rf.name}: {e}", file=sys.stderr)
 
-    items.sort(key=lambda x: (x["jurisdiction"], x["track"]))
+    items.sort(key=lambda x: ("jurisdiction", "track"))
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
