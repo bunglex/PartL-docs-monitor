@@ -70,7 +70,7 @@ jobs:
               json.dump(data, f, ensure_ascii=False, indent=2)
 
           print(f'Stamped {len(items)} items at {now}')
-PY
+          PY
 
       # Generate PDF thumbnails (uses Poppler's pdftoppm)
       - name: Install Poppler (for pdftoppm)
