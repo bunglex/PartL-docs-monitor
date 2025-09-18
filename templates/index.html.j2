@@ -13,32 +13,49 @@
     crossorigin="anonymous">
 
   <style>
-    body { background:#f7f7f9; }
-    .page-wrap { max-width: 1100px; margin: 0 auto; }
+    body { background:#f5f6f8; }
     .brand-bar { background:#0d6efd; color:#fff; }
-    .brand-bar .container { padding: .8rem 1rem; font-weight:600; }
-    .section-card { margin-top: 2rem; }
-    .juris-header .badge { text-transform: uppercase; letter-spacing:.03em; }
+    .brand-bar .container { padding:.85rem 0; font-weight:600; }
+    .page-wrap { max-width: 1100px; margin: 0 auto; }
+    .section-card { margin-top: 1.25rem; }
+    .juris-badge { text-transform: uppercase; letter-spacing:.03em; }
     .table thead th { white-space: nowrap; }
     .btn-wrapped { line-height:1.1 }
+    .sticky-accordion .accordion-button { position: sticky; top: 0; z-index: 2; }
+    /* Mobile: turn table rows into cards with labels */
+    @media (max-width: 575.98px) {
+      .table-responsive { border:0; }
+      table.responsive-table thead { display:none; }
+      table.responsive-table tbody tr {
+        display:block; border:1px solid #dee2e6; border-radius:.75rem;
+        padding:.5rem .75rem; margin-bottom:.75rem; background:#fff;
+      }
+      table.responsive-table tbody td {
+        display:flex; justify-content:space-between; border:0 !important; padding:.25rem 0;
+      }
+      table.responsive-table tbody td::before {
+        content: attr(data-label);
+        font-weight:600; margin-right:1rem; color:#6c757d;
+      }
+      .mobile-actions { display:flex; gap:.5rem; margin-top:.35rem; }
+    }
   </style>
 </head>
 <body>
-
   <div class="brand-bar">
     <div class="container page-wrap">Building Energy Docs – Monitor</div>
   </div>
 
   <main class="container page-wrap">
-    <div class="card section-card">
+    <div class="card shadow-sm section-card">
       <div class="card-body">
-        <h3 class="card-title mb-3">Publication History</h3>
-        <p class="text-muted">
+        <h3 class="card-title mb-2">Publication History</h3>
+        <p class="mb-3 text-muted">
           Machine-readable dataset:
           <a href="{{ current_json_url or 'current.json' }}" class="link-primary">current.json</a>
         </p>
 
-        {# ----- Group items by jurisdiction in the requested order ----- #}
+        {# --- group by jurisdiction with preferred order --- #}
         {% set order = ['england','wales','scotland','northern-ireland','ireland'] %}
         {% set items_by_jur = {} %}
         {% for row in items %}
@@ -47,191 +64,131 @@
           {% set _ = items_by_jur[j].append(row) %}
         {% endfor %}
 
-        <div class="accordion" id="jurisdictionAccordion">
+        <div class="accordion sticky-accordion" id="jurAccordion">
+          {% macro table_for(rows, jur) %}
+            <div class="table-responsive">
+              <table class="table table-bordered table-hover table-sm align-middle mb-0 responsive-table">
+                <thead class="table-light">
+                  <tr>
+                    <th style="width:22%">Track</th>
+                    <th>Title</th>
+                    <th style="width:12%">Issued</th>
+                    <th style="width:10%">Version</th>
+                    <th style="width:22%" class="text-center">PDF / Preview / History</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in rows %}
+                    {% set title = row.title or row.name %}
+                    {% set safe_id = (jur ~ '-' ~ loop.index)|replace(' ','-') %}
+                    <tr>
+                      <td data-label="Track">{{ row.track }}</td>
+                      <td data-label="Title">{{ title }}</td>
+                      <td data-label="Issued">{{ row.issued }}</td>
+                      <td data-label="Version">{{ row.version }}</td>
+                      <td data-label="Actions" class="text-center">
+                        <div class="d-none d-sm-inline-flex align-items-center">
+                          {% if row.pdf_url %}
+                            <a class="btn btn-outline-primary btn-sm btn-wrapped"
+                               href="{{ row.pdf_url }}" target="_blank" rel="noopener">Open<br>PDF</a>
+                            <button type="button" class="btn btn-secondary btn-sm ms-2"
+                                    data-bs-toggle="modal" data-bs-target="#preview-{{ safe_id }}">Preview</button>
+                          {% else %}
+                            <span class="text-muted">No PDF</span>
+                          {% endif %}
+                          {% if row.history_url %}
+                            <a class="btn btn-outline-secondary btn-sm ms-2"
+                               href="{{ row.history_url }}" target="_blank" rel="noopener">History</a>
+                          {% endif %}
+                        </div>
+                        <div class="mobile-actions d-sm-none">
+                          {% if row.pdf_url %}
+                            <a class="btn btn-outline-primary btn-sm w-100" href="{{ row.pdf_url }}" target="_blank" rel="noopener">Open</a>
+                            <button type="button" class="btn btn-secondary btn-sm w-100"
+                                    data-bs-toggle="modal" data-bs-target="#preview-{{ safe_id }}">Preview</button>
+                          {% endif %}
+                          {% if row.history_url %}
+                            <a class="btn btn-outline-secondary btn-sm w-100" href="{{ row.history_url }}" target="_blank" rel="noopener">History</a>
+                          {% endif %}
+                          {% if not row.pdf_url and not row.history_url %}
+                            <span class="text-muted small">No actions</span>
+                          {% endif %}
+                        </div>
+
+                        {% if row.pdf_url %}
+                          <!-- Modal -->
+                          <div class="modal fade" id="preview-{{ safe_id }}" tabindex="-1" aria-hidden="true">
+                            <div class="modal-dialog modal-xl modal-dialog-scrollable">
+                              <div class="modal-content">
+                                <div class="modal-header">
+                                  <h5 class="modal-title">{{ title }}</h5>
+                                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body p-0" style="height:75vh">
+                                  <iframe
+                                    src="{{ row.pdf_url }}#view=FitH"
+                                    style="width:100%;height:100%;border:0"
+                                    referrerpolicy="no-referrer"
+                                    onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'p-3',innerHTML:`Embedding blocked. <a href='{{ row.pdf_url }}' target='_blank' rel='noopener'>Open PDF</a>`}))"
+                                  ></iframe>
+                                </div>
+                                <div class="modal-footer">
+                                  <a class="btn btn-primary" href="{{ row.pdf_url }}" target="_blank" rel="noopener">Open in new tab</a>
+                                  <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        {% endif %}
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% endmacro %}
+
+          {# preferred jurisdictions #}
           {% for jur in order if jur in items_by_jur %}
             {% set panel_id = 'jur-' ~ jur.replace(' ','-') %}
-            <div class="accordion-item mb-2">
+            <div class="accordion-item shadow-sm mb-3 rounded-3 overflow-hidden">
               <h2 class="accordion-header" id="{{ panel_id }}-head">
                 <button class="accordion-button {% if not loop.first %}collapsed{% endif %}" type="button"
-                        data-bs-toggle="collapse"
-                        data-bs-target="#{{ panel_id }}-body"
-                        aria-expanded="{{ 'true' if loop.first else 'false' }}"
-                        aria-controls="{{ panel_id }}-body">
-                  <span class="juris-header">
-                    <span class="badge bg-primary me-2">{{ jur }}</span>
-                    <span class="text-muted small">{{ items_by_jur[jur]|length }} document{{ '' if items_by_jur[jur]|length == 1 else 's' }}</span>
-                  </span>
+                        data-bs-toggle="collapse" data-bs-target="#{{ panel_id }}-body"
+                        aria-expanded="{{ 'true' if loop.first else 'false' }}" aria-controls="{{ panel_id }}-body">
+                  <span class="juris-badge badge bg-primary me-2">{{ jur }}</span>
+                  <span class="text-muted small">{{ items_by_jur[jur]|length }} document{{ '' if items_by_jur[jur]|length == 1 else 's' }}</span>
                 </button>
               </h2>
               <div id="{{ panel_id }}-body" class="accordion-collapse collapse {% if loop.first %}show{% endif %}"
-                   aria-labelledby="{{ panel_id }}-head" data-bs-parent="#jurisdictionAccordion">
+                   aria-labelledby="{{ panel_id }}-head" data-bs-parent="#jurAccordion">
                 <div class="accordion-body p-0">
-                  <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                      <thead class="table-light">
-                        <tr>
-                          <th style="width:18%">Track</th>
-                          <th style="width:42%">Title</th>
-                          <th style="width:10%">Issued</th>
-                          <th style="width:10%">Version</th>
-                          <th style="width:20%" class="text-center">PDF / Preview / History</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {% for row in items_by_jur[jur] %}
-                          {% set title = row.title or row.name %}
-                          {% set safe_id = (jur ~ '-' ~ loop.index)|replace(' ','-') %}
-                          <tr>
-                            <td>{{ row.track }}</td>
-                            <td>{{ title }}</td>
-                            <td>{{ row.issued }}</td>
-                            <td>{{ row.version }}</td>
-                            <td class="text-center">
-                              <div class="d-inline-flex align-items-center">
-                                {% if row.pdf_url %}
-                                  <a class="btn btn-outline-primary btn-sm btn-wrapped"
-                                     href="{{ row.pdf_url }}" target="_blank" rel="noopener">Open<br>PDF</a>
-                                  <button type="button"
-                                          class="btn btn-secondary btn-sm ms-2"
-                                          data-bs-toggle="modal"
-                                          data-bs-target="#preview-{{ safe_id }}">Preview</button>
-                                {% else %}
-                                  <span class="text-muted">No PDF</span>
-                                {% endif %}
-                                {% if row.history_url %}
-                                  <a class="btn btn-outline-secondary btn-sm ms-2"
-                                     href="{{ row.history_url }}" target="_blank" rel="noopener">History</a>
-                                {% endif %}
-                              </div>
-
-                              {% if row.pdf_url %}
-                                <!-- PDF Preview Modal -->
-                                <div class="modal fade" id="preview-{{ safe_id }}" tabindex="-1" aria-hidden="true">
-                                  <div class="modal-dialog modal-xl modal-dialog-scrollable">
-                                    <div class="modal-content">
-                                      <div class="modal-header">
-                                        <h5 class="modal-title">{{ title }}</h5>
-                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                      </div>
-                                      <div class="modal-body p-0" style="height:75vh">
-                                        <iframe
-                                          src="{{ row.pdf_url }}#view=FitH"
-                                          style="width:100%;height:100%;border:0"
-                                          referrerpolicy="no-referrer"
-                                          onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'p-3',innerHTML:`Embedding blocked. <a href='{{ row.pdf_url }}' target='_blank' rel='noopener'>Open PDF</a>`}))"
-                                        ></iframe>
-                                      </div>
-                                      <div class="modal-footer">
-                                        <a class="btn btn-primary" href="{{ row.pdf_url }}" target="_blank" rel="noopener">Open in new tab</a>
-                                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              {% endif %}
-                            </td>
-                          </tr>
-                        {% endfor %}
-                      </tbody>
-                    </table>
-                  </div>
+                  {{ table_for(items_by_jur[jur], jur) }}
                 </div>
               </div>
             </div>
           {% endfor %}
 
-          {# Any jurisdictions not in the preferred order go last #}
+          {# any remaining jurisdictions #}
           {% for jur, rows in items_by_jur.items() if jur not in order %}
             {% set panel_id = 'jur-' ~ jur.replace(' ','-') %}
-            <div class="accordion-item mb-2">
+            <div class="accordion-item shadow-sm mb-3 rounded-3 overflow-hidden">
               <h2 class="accordion-header" id="{{ panel_id }}-head">
                 <button class="accordion-button collapsed" type="button"
-                        data-bs-toggle="collapse"
-                        data-bs-target="#{{ panel_id }}-body"
+                        data-bs-toggle="collapse" data-bs-target="#{{ panel_id }}-body"
                         aria-expanded="false" aria-controls="{{ panel_id }}-body">
-                  <span class="juris-header">
-                    <span class="badge bg-secondary me-2">{{ jur }}</span>
-                    <span class="text-muted small">{{ rows|length }} document{{ '' if rows|length == 1 else 's' }}</span>
-                  </span>
+                  <span class="juris-badge badge bg-secondary me-2">{{ jur }}</span>
+                  <span class="text-muted small">{{ rows|length }} document{{ '' if rows|length == 1 else 's' }}</span>
                 </button>
               </h2>
               <div id="{{ panel_id }}-body" class="accordion-collapse collapse" aria-labelledby="{{ panel_id }}-head">
                 <div class="accordion-body p-0">
-                  <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                      <thead class="table-light">
-                        <tr>
-                          <th style="width:18%">Track</th>
-                          <th style="width:42%">Title</th>
-                          <th style="width:10%">Issued</th>
-                          <th style="width:10%">Version</th>
-                          <th style="width:20%" class="text-center">PDF / Preview / History</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {% for row in rows %}
-                          {% set title = row.title or row.name %}
-                          {% set safe_id = (jur ~ '-' ~ loop.index)|replace(' ','-') %}
-                          <tr>
-                            <td>{{ row.track }}</td>
-                            <td>{{ title }}</td>
-                            <td>{{ row.issued }}</td>
-                            <td>{{ row.version }}</td>
-                            <td class="text-center">
-                              <div class="d-inline-flex align-items-center">
-                                {% if row.pdf_url %}
-                                  <a class="btn btn-outline-primary btn-sm btn-wrapped"
-                                     href="{{ row.pdf_url }}" target="_blank" rel="noopener">Open<br>PDF</a>
-                                  <button type="button"
-                                          class="btn btn-secondary btn-sm ms-2"
-                                          data-bs-toggle="modal"
-                                          data-bs-target="#preview-{{ safe_id }}">Preview</button>
-                                {% else %}
-                                  <span class="text-muted">No PDF</span>
-                                {% endif %}
-                                {% if row.history_url %}
-                                  <a class="btn btn-outline-secondary btn-sm ms-2"
-                                     href="{{ row.history_url }}" target="_blank" rel="noopener">History</a>
-                                {% endif %}
-                              </div>
-
-                              {% if row.pdf_url %}
-                                <!-- PDF Preview Modal -->
-                                <div class="modal fade" id="preview-{{ safe_id }}" tabindex="-1" aria-hidden="true">
-                                  <div class="modal-dialog modal-xl modal-dialog-scrollable">
-                                    <div class="modal-content">
-                                      <div class="modal-header">
-                                        <h5 class="modal-title">{{ title }}</h5>
-                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                      </div>
-                                      <div class="modal-body p-0" style="height:75vh">
-                                        <iframe
-                                          src="{{ row.pdf_url }}#view=FitH"
-                                          style="width:100%;height:100%;border:0"
-                                          referrerpolicy="no-referrer"
-                                          onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'p-3',innerHTML:`Embedding blocked. <a href='{{ row.pdf_url }}' target='_blank' rel='noopener'>Open PDF</a>`}))"
-                                        ></iframe>
-                                      </div>
-                                      <div class="modal-footer">
-                                        <a class="btn btn-primary" href="{{ row.pdf_url }}" target="_blank" rel="noopener">Open in new tab</a>
-                                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              {% endif %}
-                            </td>
-                          </tr>
-                        {% endfor %}
-                      </tbody>
-                    </table>
-                  </div>
+                  {{ table_for(rows, jur) }}
                 </div>
               </div>
             </div>
           {% endfor %}
         </div>
-
       </div>
     </div>
   </main>
