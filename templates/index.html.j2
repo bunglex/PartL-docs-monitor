@@ -20,11 +20,14 @@
     .accordion-item { border-radius:.75rem; overflow:hidden; }
     .accordion-button { font-weight:600; }
     .accordion-body { background:#fff; }
+    .badge-soft { background:#f8f9fa; border:1px solid #e9ecef; color:#6c757d; }
+    .hover-underline:hover { text-decoration: underline !important; }
 
     /* Mobile: turn table rows into labeled cards */
     @media (max-width: 575.98px) {
       .table-responsive { border:0; }
       table.responsive-table thead { display:none; }
+      table.responsive-table colgroup { display:none; }
       table.responsive-table tbody tr {
         display:block; border:1px solid #dee2e6; border-radius:.75rem;
         padding:.5rem .75rem; margin-bottom:.75rem; background:#fff;
@@ -90,15 +93,22 @@
           {% macro table_for(rows, jur) %}
             <div class="table-responsive">
               <table class="table table-bordered table-hover table-sm align-middle mb-0 responsive-table">
+                <colgroup>
+                  <col style="width:10%">  {# Preview #}
+                  <col style="width:22%">  {# Track #}
+                  <col>                     {# Title (flex) #}
+                  <col style="width:12%">  {# Issued #}
+                  <col style="width:18%">  {# Checked #}
+                  <col style="width:12%">  {# History #}
+                </colgroup>
                 <thead class="table-light">
                   <tr>
-                    <th style="width:10%">Preview</th>
-                    <th style="width:22%">Track</th>
+                    <th>Preview</th>
+                    <th>Track</th>
                     <th>Title</th>
-                    <th style="width:12%">Issued</th>
-                    <th style="width:10%">Version</th>
-                    <th style="width:16%">Checked</th>
-                    <th style="width:18%" class="text-center">PDF / History</th>
+                    <th>Issued</th>
+                    <th>Checked</th>
+                    <th class="text-center">History</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -118,10 +128,22 @@
                           <span class="text-muted">—</span>
                         {% endif %}
                       </td>
+
                       <td data-label="Track">{{ row.track }}</td>
-                      <td data-label="Title">{{ title }}</td>
+
+                      <td data-label="Title">
+                        {% if pdf_url %}
+                          <a class="link-dark text-decoration-none hover-underline" href="{{ pdf_url }}" target="_blank" rel="noopener">{{ title }}</a>
+                        {% else %}
+                          {{ title }}
+                        {% endif %}
+                        {% if row.version %}
+                          <span class="badge badge-soft ms-2">{{ row.version }}</span>
+                        {% endif %}
+                      </td>
+
                       <td data-label="Issued">{{ row.issued }}</td>
-                      <td data-label="Version">{{ row.version }}</td>
+
                       <td data-label="Checked">
                         {% if row.checked_at %}
                           <time class="checked-at" datetime="{{ row.checked_at }}">{{ row.checked_at }}</time>
@@ -129,28 +151,13 @@
                           <span class="text-muted">—</span>
                         {% endif %}
                       </td>
-                      <td data-label="Actions" class="text-center">
-                        <div class="d-none d-sm-inline-flex align-items-center">
-                          {% if pdf_url %}
-                            <a class="btn btn-outline-primary btn-sm" href="{{ pdf_url }}" target="_blank" rel="noopener">Open PDF</a>
-                          {% else %}
-                            <span class="text-muted">No PDF</span>
-                          {% endif %}
-                          {% if history_url %}
-                            <a class="btn btn-outline-secondary btn-sm ms-2" href="{{ history_url }}" target="_blank" rel="noopener">History</a>
-                          {% endif %}
-                        </div>
-                        <div class="mobile-actions d-sm-none">
-                          {% if pdf_url %}
-                            <a class="btn btn-outline-primary btn-sm w-100" href="{{ pdf_url }}" target="_blank" rel="noopener">Open PDF</a>
-                          {% endif %}
-                          {% if history_url %}
-                            <a class="btn btn-outline-secondary btn-sm w-100" href="{{ history_url }}" target="_blank" rel="noopener">History</a>
-                          {% endif %}
-                          {% if not pdf_url and not history_url %}
-                            <span class="text-muted small">No actions</span>
-                          {% endif %}
-                        </div>
+
+                      <td data-label="History" class="text-center">
+                        {% if history_url %}
+                          <a class="btn btn-outline-secondary btn-sm" href="{{ history_url }}" target="_blank" rel="noopener">History</a>
+                        {% else %}
+                          <span class="text-muted">—</span>
+                        {% endif %}
                       </td>
                     </tr>
                   {% endfor %}
