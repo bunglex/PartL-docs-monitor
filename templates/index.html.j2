@@ -4,10 +4,7 @@
   <meta charset="utf-8"/>
   <title>Building Energy Docs – Monitor</title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-
-  <!-- Bootstrap 5.3.3 (no SRI) -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-
   <style>
     body { background:#f5f6f8; }
     .brand-bar { background:#0d6efd; color:#fff; }
@@ -16,11 +13,8 @@
     .section-card { margin-top: 1.25rem; }
     .juris-badge { text-transform: uppercase; letter-spacing:.03em; }
     .table thead th { white-space: nowrap; }
-    .btn-wrapped { line-height:1.1 }
+    .thumb { width: 68px; height: 96px; object-fit: cover; border:1px solid #dee2e6; border-radius:.25rem; background:#fff; }
     .accordion-item { border-radius:.75rem; overflow:hidden; }
-    .accordion-button { font-weight:600; }
-    .accordion-body { background:#fff; }
-    /* Mobile: turn table rows into cards with labels */
     @media (max-width: 575.98px) {
       .table-responsive { border:0; }
       table.responsive-table thead { display:none; }
@@ -28,13 +22,12 @@
         display:block; border:1px solid #dee2e6; border-radius:.75rem;
         padding:.5rem .75rem; margin-bottom:.75rem; background:#fff;
       }
-      table.responsive-table tbody td {
-        display:flex; justify-content:space-between; border:0 !important; padding:.25rem 0;
-      }
-      table.responsive-table tbody td::before {
+      table.responsive-table tbody td { display:block; border:0 !important; padding:.25rem 0; }
+      table.responsive-table tbody td[data-label]::before {
         content: attr(data-label);
-        font-weight:600; margin-right:1rem; color:#6c757d;
+        display:block; font-weight:600; color:#6c757d; margin-bottom:.15rem;
       }
+      .thumb { width: 90px; height: 120px; }
       .mobile-actions { display:flex; gap:.5rem; margin-top:.35rem; }
     }
   </style>
@@ -53,36 +46,29 @@
           <a href="{{ current_json_url or 'current.json' }}" class="link-primary">current.json</a>
         </p>
 
-        {# ---------- helpers to robustly pick URLs ---------- #}
         {% macro pick_pdf(row) -%}
           {%- set url = '' -%}
-          {%- if row.pdf_url is defined and row.pdf_url -%}
-            {%- set url = row.pdf_url -%}
+          {%- if row.pdf_url is defined and row.pdf_url -%}{%- set url = row.pdf_url -%}
           {%- elif row.pdf is defined -%}
             {%- if row.pdf is string -%}{%- set url = row.pdf -%}
             {%- elif row.pdf.href is defined -%}{%- set url = row.pdf.href -%}{%- endif -%}
           {%- elif row.links is defined and row.links.pdf is defined and row.links.pdf -%}
             {%- set url = row.links.pdf -%}
-          {%- elif row.PDF is defined and row.PDF -%}
-            {%- set url = row.PDF -%}
-          {%- endif -%}
+          {%- elif row.PDF is defined and row.PDF -%}{%- set url = row.PDF -%}{%- endif -%}
           {{- url -}}
         {%- endmacro %}
 
         {% macro pick_history(row) -%}
           {%- set url = '' -%}
-          {%- if row.history_url is defined and row.history_url -%}
-            {%- set url = row.history_url -%}
+          {%- if row.history_url is defined and row.history_url -%}{%- set url = row.history_url -%}
           {%- elif row.history is defined -%}
             {%- if row.history is string -%}{%- set url = row.history -%}
             {%- elif row.history.href is defined -%}{%- set url = row.history.href -%}{%- endif -%}
           {%- elif row.links is defined and row.links.history is defined and row.links.history -%}
-            {%- set url = row.links.history -%}
-          {%- endif -%}
+            {%- set url = row.links.history -%}{%- endif -%}
           {{- url -}}
         {%- endmacro %}
 
-        {# ---------- group by jurisdiction in preferred order ---------- #}
         {% set order = ['england','wales','scotland','northern-ireland','ireland'] %}
         {% set items_by_jur = {} %}
         {% for row in items %}
@@ -97,11 +83,12 @@
               <table class="table table-bordered table-hover table-sm align-middle mb-0 responsive-table">
                 <thead class="table-light">
                   <tr>
+                    <th style="width:10%">Preview</th>
                     <th style="width:22%">Track</th>
                     <th>Title</th>
                     <th style="width:12%">Issued</th>
                     <th style="width:10%">Version</th>
-                    <th style="width:22%" class="text-center">PDF / Preview / History</th>
+                    <th style="width:20%" class="text-center">PDF / History</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -109,8 +96,18 @@
                     {% set title = row.title or row.name %}
                     {% set pdf_url = pick_pdf(row) %}
                     {% set history_url = pick_history(row) %}
-                    {% set safe_id = (jur ~ '-' ~ loop.index)|replace(' ','-') %}
                     <tr>
+                      <td data-label="Preview">
+                        {% if row.thumb_url and pdf_url %}
+                          <a href="{{ pdf_url }}" target="_blank" rel="noopener">
+                            <img class="thumb" src="{{ row.thumb_url }}" alt="Thumbnail of {{ title }}">
+                          </a>
+                        {% elif row.thumb_url %}
+                          <img class="thumb" src="{{ row.thumb_url }}" alt="Thumbnail of {{ title }}">
+                        {% else %}
+                          <span class="text-muted">—</span>
+                        {% endif %}
+                      </td>
                       <td data-label="Track">{{ row.track }}</td>
                       <td data-label="Title">{{ title }}</td>
                       <td data-label="Issued">{{ row.issued }}</td>
@@ -118,23 +115,17 @@
                       <td data-label="Actions" class="text-center">
                         <div class="d-none d-sm-inline-flex align-items-center">
                           {% if pdf_url %}
-                            <a class="btn btn-outline-primary btn-sm btn-wrapped"
-                               href="{{ pdf_url }}" target="_blank" rel="noopener">Open<br>PDF</a>
-                            <button type="button" class="btn btn-secondary btn-sm ms-2"
-                                    data-bs-toggle="modal" data-bs-target="#preview-{{ safe_id }}">Preview</button>
+                            <a class="btn btn-outline-primary btn-sm" href="{{ pdf_url }}" target="_blank" rel="noopener">Open PDF</a>
                           {% else %}
                             <span class="text-muted">No PDF</span>
                           {% endif %}
                           {% if history_url %}
-                            <a class="btn btn-outline-secondary btn-sm ms-2"
-                               href="{{ history_url }}" target="_blank" rel="noopener">History</a>
+                            <a class="btn btn-outline-secondary btn-sm ms-2" href="{{ history_url }}" target="_blank" rel="noopener">History</a>
                           {% endif %}
                         </div>
                         <div class="mobile-actions d-sm-none">
                           {% if pdf_url %}
-                            <a class="btn btn-outline-primary btn-sm w-100" href="{{ pdf_url }}" target="_blank" rel="noopener">Open</a>
-                            <button type="button" class="btn btn-secondary btn-sm w-100"
-                                    data-bs-toggle="modal" data-bs-target="#preview-{{ safe_id }}">Preview</button>
+                            <a class="btn btn-outline-primary btn-sm w-100" href="{{ pdf_url }}" target="_blank" rel="noopener">Open PDF</a>
                           {% endif %}
                           {% if history_url %}
                             <a class="btn btn-outline-secondary btn-sm w-100" href="{{ history_url }}" target="_blank" rel="noopener">History</a>
@@ -143,32 +134,6 @@
                             <span class="text-muted small">No actions</span>
                           {% endif %}
                         </div>
-
-                        {% if pdf_url %}
-                          <!-- Modal -->
-                          <div class="modal fade" id="preview-{{ safe_id }}" tabindex="-1" aria-hidden="true">
-                            <div class="modal-dialog modal-xl modal-dialog-scrollable">
-                              <div class="modal-content">
-                                <div class="modal-header">
-                                  <h5 class="modal-title">{{ title }}</h5>
-                                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                                </div>
-                                <div class="modal-body p-0" style="height:75vh">
-                                  <iframe
-                                    src="{{ pdf_url }}#view=FitH"
-                                    style="width:100%;height:100%;border:0"
-                                    referrerpolicy="no-referrer"
-                                    onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'p-3',innerHTML:`Embedding blocked. <a href='{{ pdf_url }}' target='_blank' rel='noopener'>Open PDF</a>`}))"
-                                  ></iframe>
-                                </div>
-                                <div class="modal-footer">
-                                  <a class="btn btn-primary" href="{{ pdf_url }}" target="_blank" rel="noopener">Open in new tab</a>
-                                  <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        {% endif %}
                       </td>
                     </tr>
                   {% endfor %}
@@ -177,22 +142,18 @@
             </div>
           {% endmacro %}
 
-          {# preferred jurisdictions (independent toggles: no data-bs-parent) #}
           {% for jur in order if jur in items_by_jur %}
             {% set panel_id = 'jur-' ~ jur.replace(' ','-') %}
             <div class="accordion-item shadow-sm mb-3">
               <h2 class="accordion-header" id="{{ panel_id }}-head">
                 <button class="accordion-button {% if not loop.first %}collapsed{% endif %}" type="button"
-                        data-bs-toggle="collapse"
-                        data-bs-target="#{{ panel_id }}-body"
-                        aria-expanded="{{ 'true' if loop.first else 'false' }}"
-                        aria-controls="{{ panel_id }}-body">
+                        data-bs-toggle="collapse" data-bs-target="#{{ panel_id }}-body"
+                        aria-expanded="{{ 'true' if loop.first else 'false' }}" aria-controls="{{ panel_id }}-body">
                   <span class="juris-badge badge bg-primary me-2">{{ jur }}</span>
                   <span class="text-muted small">{{ items_by_jur[jur]|length }} document{{ '' if items_by_jur[jur]|length == 1 else 's' }}</span>
                 </button>
               </h2>
-              <div id="{{ panel_id }}-body" class="accordion-collapse collapse {% if loop.first %}show{% endif %}"
-                   aria-labelledby="{{ panel_id }}-head">
+              <div id="{{ panel_id }}-body" class="accordion-collapse collapse {% if loop.first %}show{% endif %}" aria-labelledby="{{ panel_id }}-head">
                 <div class="accordion-body p-0">
                   {{ table_for(items_by_jur[jur], jur) }}
                 </div>
@@ -200,7 +161,6 @@
             </div>
           {% endfor %}
 
-          {# remaining jurisdictions #}
           {% for jur, rows in items_by_jur.items() if jur not in order %}
             {% set panel_id = 'jur-' ~ jur.replace(' ','-') %}
             <div class="accordion-item shadow-sm mb-3">
@@ -224,23 +184,6 @@
     </div>
   </main>
 
-  <!-- Bootstrap 5.3.3 bundle (no SRI) -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-
-  <!-- Remember open/closed state per section -->
-  <script>
-    document.addEventListener('DOMContentLoaded', function () {
-      const prefix = 'jurAccordion:';
-      document.querySelectorAll('.accordion-collapse').forEach(function (c) {
-        // restore previous state
-        if (localStorage.getItem(prefix + c.id) === '1') {
-          new bootstrap.Collapse(c, { toggle: true });
-        }
-        // save on change
-        c.addEventListener('shown.bs.collapse', () => localStorage.setItem(prefix + c.id, '1'));
-        c.addEventListener('hidden.bs.collapse', () => localStorage.removeItem(prefix + c.id));
-      });
-    });
-  </script>
 </body>
 </html>
